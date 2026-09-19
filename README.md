@@ -246,23 +246,24 @@ backend/
 ### 8. API Documentation Table
 Format required by the capstone spec
 
-| EndPoint  | Method  | Purpose  | Auth  | Request Body  | Success Response | Error Response |
-| -------- | -------- | -------- | -------- | -------- | -------- | -------- |
-| `/api/auth/register`  | POST  | Create account  | None  | {firstName, lastName, email, password, confirmPassword,phone}  | 201 {success: true, data:  :{userId}} | 404 {success: false, message: "Email already exists"} |
-| `/api/auth/login`  | POST  | Authenticate  | None  | {email,password}  | 200 {success: true, data:  :{token,user}} | 404 {success: false, message: "Invalid email or password"} |
-| `/api/hotels/places`  | GET  | Location autocomplete  | None  | Query: query  | 200 {success: true, data:  {...}} | 404 {success: false, message: "Query too short"} |
-| `/api/hotels/search`  | GET  | Search hotels  | None  | Query: city, checkIn, checkOut, guests, page,limit | 200 {success: true, data:  :{hotels,total,page}} | 502 {success: false, message: " Unable to reach hotel provider"} |
-| `/api/hotels/:id`  | GET  | Hotel detail + rooms  | None  | Query: checkIn,checkOut,guests  | 200 {success: true, data:  :{hotel,rooms}} | 404 {success: false, message: "Hotel not  found"} |
-| `/api/bookings/prebook`  | POST  | Verify selected LiteAPI rate and create local booking attempt  | Soft  |  {offerId,guestDetails,...}  | 200 {success: true, data:  :{bookingId, prebookId, transactionId, paymentSecretKey}} | 400/502 {success: false, message: "Unable to prebook selected rate"} |
-| `/api/bookings/:id/confirm`  | POST  | Finalize reservation through LiteAPI Book  | Soft  | {holder,guests}  | 200 {success: true, data:  :{booking}} | 400/502 {success: false, message: "Unable to  confirm hotel booking"} |
-| ` /api/bookings/my-bookings`  | GET  | Own booking history  | Required  | Query: page,limit  | 200 {success: true, data:  :{bookings,total}} | 401 {success: false, message: "Not authenticated"} |
-| `/api/bookings/lookup`  | GET  | Guest booking lookup  | None  | Query: reference,email  | 200 {success: true, data:  :{booking}} | 404 {success: false, message: "Booking not  found"} |
-| `/api/bookings/:id/cancel`  | PATCH  | Cancel a confirmed booking through LiteAPI  | Soft/Admin  | {reason?}  | 200 {success: true, data:  :{booking}} | 403/502 {success: false, message: "Unable to cancel booking"} |
-| `/api/admin/bookings`  | GET  | All bookings  | Admin  | Query: page,limit,status  | 200 {success: true, data:  :{bookings,total}} | 403 {success: false, message: "Admins only"} |
-| `/api/admin/users`  | GET  | All users  | Admin  | Query: page,limit  | 200 {success: true, data:  :{users, total}} | 403 {success: false, message: "Admins only"} |
-| ` /api/admin/users/:id/deactivate`  | PATCH  | Deactivate a user  | Admin  | --  | 200 {success: true, data:  :{user}} |  404 {success: false, message: "User not  found"} |
+| EndPoint | Method | Purpose | Auth | Request Body | Success Response | Error Response |
+| -------- | ------ | ------- | ---- | ------------ | ---------------- | -------------- |
+| `/api/auth/register` | POST | Create account | None | `{firstName, lastName, email, password, confirmPassword,phone}` | `201 {success: true, data: :{userId}}` | `404 {success: false, message: "Email already exists"}` |
+| `/api/auth/login` | POST | Authenticate | None | `{email,password}` | `200 {success: true, data: :{token,user}}` | `404 {success: false, message: "Invalid email or password"}` |
+| `/api/hotels/places` | GET | Location autocomplete | None | Query: query | `200 {success: true, data: {...}}` | `404 {success: false, message: "Query too short"}` |
+| `/api/hotels/search` | GET | Search hotels | None | Query: city, checkIn, checkOut, guests, page,limit | `200 {success: true, data: :{hotels,total,page}}` | `502 {success: false, message: "Unable to reach hotel provider"}` |
+| `/api/hotels/:id` | GET | Hotel detail + rooms | None | Query: checkIn,checkOut,guests | `200 {success: true, data: :{hotel,rooms}}` | `404 {success: false, message: "Hotel not found"}` |
+| `/api/bookings/prebook` | POST | Verify selected LiteAPI rate and create local booking attempt | Soft | `{offerId,guestDetails,...}` | `200 {success: true, data: :{bookingId, prebookId, transactionId, paymentSecretKey}}` | `400/502 {success: false, message: "Unable to prebook selected rate"}` |
+| `/api/bookings/:id/confirm` | POST | Finalize reservation through LiteAPI Book | Soft | `{holder,guests}` | `200 {success: true, data: :{booking}}` | `400/502 {success: false, message: "Unable to confirm hotel booking"}` |
+| `/api/bookings/my-bookings` | GET | Own booking history | Required | Query: page,limit | `200 {success: true, data: :{bookings,total}}` | `401 {success: false, message: "Not authenticated"}` |
+| `/api/bookings/lookup` | GET | Guest booking lookup | None | Query: reference,email | `200 {success: true, data: :{booking}}` | `404 {success: false, message: "Booking not found"}` |
+| `/api/bookings/:id/cancel` | PATCH | Cancel a confirmed booking through LiteAPI | Soft/Admin | `{reason?}` | `200 {success: true, data: :{booking}}` | `403/502 {success: false, message: "Unable to cancel booking"}` |
+| `/api/admin/bookings` | GET | All bookings | Admin | Query: page,limit,status | `200 {success: true, data: :{bookings,total}}` | `403 {success: false, message: "Admins only"}` |
+| `/api/admin/users` | GET | All users | Admin | Query: page,limit | `200 {success: true, data: :{users, total}}` | `403 {success: false, message: "Admins only"}` |
+| `/api/admin/users/:id/deactivate` | PATCH | Deactivate a user | Admin | -- | `200 {success: true, data: :{user}}` | `404 {success: false, message: "User not found"}` |
 
 We will expand this table as we build — this exact table, kept current, satisfies the capstone's API documentation requirement after I read through it.
+
 
 ### 9. Security Rules
 **1. customerId on Booking —** from req.user.userId when logged in, never from body. *IMPORTANT: never get customerId from req.body — this leads to IDOR because you are trusting user input.*
