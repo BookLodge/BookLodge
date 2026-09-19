@@ -241,7 +241,7 @@ backend/
 ├── .env.example
 ├── .gitignore
 └── package.json
-
+```
 
 ### 8. API Documentation Table
 Format required by the capstone spec
