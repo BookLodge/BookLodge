@@ -266,12 +266,14 @@ We will expand this table as we build — this exact table, kept current, satisf
 
 
 ### 9. Security Rules
-**1. customerId on Booking —** from req.user.userId when logged in, never from body. *IMPORTANT: never get customerId from req.body — this leads to IDOR because you are trusting user input.*
+**1. customerId on Booking —** from req.user.userId when logged in, never from body. *IMPORTANT: never get customerId from req.body — this leads to IDOR because you are trusting user input.
+
 **2. Guest ownership —** reference + email together, never reference alone: this prevents IDOR.
-  8
 
 **3. totalPrice always recalculated server-side:** if the server trusts whatever totalPrice the frontend sends, a user can open dev tools or Postman and submit totalPrice: 1 for a ₦145,000 room.
+
 4. LiteAPI payment and booking responses are validated before changing local booking state.
+
 5. Booking only becomes CONFIRMED after LiteAPI returns a successful Book response, never optimistically.
+
 6. Store LiteAPI prebookId and transactionId together; they are required to finalize the same.
-9
