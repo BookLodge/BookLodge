@@ -9,4 +9,13 @@ class AppError extends Error {
   }
 }
 
-module.exports = AppError;
+class ExternalAPIError extends AppError {
+  constructor(message, statusCode = 502) {
+    super(message, statusCode);
+  }
+}
+
+module.exports = {
+  ExternalAPIError,
+  AppError
+};
