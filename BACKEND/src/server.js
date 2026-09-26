@@ -1,10 +1,6 @@
-require('dotenv').config({ quiet: true });
-
+const env = require('./config/env');
 const app = require('./app');
 const { connectDB, disconnectDB } = require('./config/db');
-
-const PORT = process.env.PORT || 5000;
-const MONGO_URI = process.env.MONGO_URI;
 
 // If shutdown hangs (e.g. a stuck request), force exit after this long.
 const SHUTDOWN_TIMEOUT_MS = 10000;
@@ -19,13 +15,13 @@ let isShuttingDown = false;
  */
 async function start() {
   try {
-    await connectDB(MONGO_URI);
+    await connectDB(env.MONGO_URI);
 
     // Express 5 also calls this callback with an error (e.g. port in use);
     // that case is handled by the 'error' listener below.
-    server = app.listen(PORT, (err) => {
+    server = app.listen(env.PORT, (err) => {
       if (err) return;
-      console.log(`[server] Listening on port ${PORT} (${process.env.NODE_ENV || 'development'})`);
+      console.log(`[server] Listening on port ${env.PORT} (${env.NODE_ENV})`);
     });
 
     server.on('error', (err) => {

@@ -15,7 +15,7 @@ npm install
 npm run dev
 ```
 
-5. Confirm: `GET http://localhost:5000/api/health` returns `"database": "connected"`.
+5. Confirm: the terminal shows `[db] Connected to MongoDB`, and `GET http://localhost:5000/api/health` returns `200` with `{ "success": true, "message": "OK", "data": null }`.
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
@@ -54,6 +54,6 @@ The connection is owned by `src/config/db.js`, which exports:
    - Duplicate key (`code 11000`) → `409` e.g. "Email already exists"
    - `CastError` → `400` "Invalid ID"
    - `ValidationError` → `400` with the field message
-9. **No hard-coded connection strings.** Always read from environment configuration.
+9. **No hard-coded connection strings.** Read configuration from `src/config/env.js` (e.g. `env.MONGO_URI`), never from `process.env` directly.
 10. **Tests use `MONGO_URI_TEST`**, never the development or production database.
 > **Windows / Nigeria tip:** if you get `querySrv ECONNREFUSED`, use Atlas's **Legacy URI String** (Connect > Drivers > toggle) instead of the `mongodb+srv://` string, or set your DNS to 8.8.8.8.
