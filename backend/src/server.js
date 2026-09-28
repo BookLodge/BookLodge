@@ -1,45 +1,81 @@
-const express = require("express");
-const mongoose = require("mongoose");
-const dotenv = require("dotenv");
-const cors = require("cors");
+const env = require('./config/env');
+const app = require('./app');
+const { connectDB, disconnectDB } = require('./config/db');
 
-const authRoutes = require("./routes/authRoutes");
+// If shutdown hangs (e.g. a stuck request), force exit after this long.
+const SHUTDOWN_TIMEOUT_MS = 10000;
 
-const { protect } = require("./middleware/auth");
+let server;
+let isShuttingDown = false;
 
-dotenv.config();
+/**
+ * Startup order: connect to the database FIRST, then accept HTTP traffic.
+ * If the database is unreachable the process exits with code 1 instead of
+ * serving requests that would all fail.
+ */
+async function start() {
+  try {
+    await connectDB(env.MONGO_URI);
 
+    // Express 5 also calls this callback with an error (e.g. port in use);
+    // that case is handled by the 'error' listener below.
+    server = app.listen(env.PORT, (err) => {
+      if (err) return;
+      console.log(`[server] Listening on port ${env.PORT} (${env.NODE_ENV})`);
+    });
 
-const app = express();
+    server.on('error', (err) => {
+      console.error(`[server] HTTP server error: ${err.message}`);
+      shutdown('serverError', 1);
+    });
+  } catch (err) {
+    console.error(`[server] Failed to start: ${err.message}`);
+    await disconnectDB().catch(() => {});
+    process.exit(1);
+  }
+}
 
-app.use(cors());
-app.use(express.json());
-app.use("/api/auth", authRoutes);
+/**
+ * Shutdown order: stop accepting new requests, let in-flight requests finish,
+ * THEN close the database connection, then exit.
+ */
+async function shutdown(reason, exitCode = 0) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  console.log(`[server] ${reason} received. Shutting down gracefully...`);
 
+  const forceExitTimer = setTimeout(() => {
+    console.error('[server] Graceful shutdown timed out. Forcing exit.');
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT_MS);
+  forceExitTimer.unref();
 
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log("MongoDB connected successfully");
-  })
-  .catch((error) => {
-    console.error("MongoDB connection failed:", error.message);
-  });
+  try {
+    if (server && server.listening) {
+      await new Promise((resolve, reject) => {
+        server.close((err) => (err ? reject(err) : resolve()));
+      });
+      console.log('[server] HTTP server closed');
+    }
+    await disconnectDB();
+    process.exit(exitCode);
+  } catch (err) {
+    console.error(`[server] Error during shutdown: ${err.message}`);
+    process.exit(1);
+  }
+}
 
-app.get("/", (req, res) => {
-  res.json({
-    message: "BookLodge Hotel API is running"
-  });
+process.on('SIGINT', () => shutdown('SIGINT')); // Ctrl+C
+process.on('SIGTERM', () => shutdown('SIGTERM')); // hosting platforms, Docker
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[server] Unhandled promise rejection:', reason);
+  shutdown('unhandledRejection', 1);
 });
-app.get("/api/protected", protect, (req, res) => {
-  res.json({
-    message: "You have access to this protected route",
-    user: req.user
-  });
+
+process.on('uncaughtException', (err) => {
+  console.error('[server] Uncaught exception:', err);
+  shutdown('uncaughtException', 1);
 });
 
-const PORT = process.env.PORT || 5001;
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+start();

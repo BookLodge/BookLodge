@@ -18,14 +18,21 @@
     "test": "tests"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.3",
     "express": "^5.2.1",
+<<<<<<< HEAD
     "joi": "^18.2.9",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.10.2"
+=======
+    "mongoose": "^9.10.2",
+    "dotenv": "^18.0.3"
+>>>>>>> dev
   }
 }
