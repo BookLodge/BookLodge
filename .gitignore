@@ -1,7 +1,16 @@
+# Environment
 .env
 .env.*
 !.env.example
 
-/node_modules
+# Dependencies
+node_modules/
+
+# Editor files
 .vscode/
+*.swp
+*.swo
+
+# Tests
+.vitest
 coverage/

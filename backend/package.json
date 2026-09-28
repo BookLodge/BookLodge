@@ -1,0 +1,27 @@
+{
+  "name": "booklodge-backend",
+  "version": "1.0.0",
+  "description": "Server-side application for BookLodge, a hotel booking platform.",
+  "homepage": "https://github.com/BookLodge/BookLodge#readme",
+  "bugs": {
+    "url": "https://github.com/BookLodge/BookLodge/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BookLodge/BookLodge.git"
+  },
+  "license": "ISC",
+  "author": "BookLodge",
+  "type": "commonjs",
+  "main": "src/server.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "mongoose": "^9.10.2"
+  }
+}
