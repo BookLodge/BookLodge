@@ -1,5 +1,4 @@
-const AppError = require("../utils/AppError");
-const ExternalAPIError = require("../utils/ExternalAPIError");
+const { AppError, ExternalAPIError } = require("../errors");
 const { sendError } = require("../utils/apiResponse");
 
 const errorHandler = (err, req, res, next) => {
