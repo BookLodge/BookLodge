@@ -15,6 +15,10 @@ let isShuttingDown = false;
  */
 async function start() {
   try {
+    if (!env.JWT_SECRET) {
+      throw new Error("JWT_SECRET is missing. Set it in your backend .env file.");
+    }
+
     await connectDB(env.MONGO_URI);
 
     // Express 5 also calls this callback with an error (e.g. port in use);

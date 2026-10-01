@@ -5,6 +5,7 @@ const env = {
 	  PORT: process.env.PORT || 5000,
 	  MONGO_URI: process.env.MONGO_URI,
 	  MONGO_URI_TEST: process.env.MONGO_URI_TEST,
+	  JWT_SECRET: process.env.JWT_SECRET,
 };
 
 module.exports = env;
