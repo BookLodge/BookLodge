@@ -12,5 +12,5 @@ node_modules/
 *.swo
 
 # Tests
-.vitest
+.vitest/
 coverage/
