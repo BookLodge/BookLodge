@@ -1,12 +1,22 @@
 const express = require("express");
 
+const { protect } = require("../middleware/auth");
+const { authorizeRoles } = require("../middleware/authorizeRoles");
+const { userParams } = require("../schemas/paramsSchema");
+
 const router = express.Router();
 
 // Import the user controller
-const userController = require("../controllers/userController"); 
+const { getMyProfile } = require("../controllers/userController"); 
 
 // Define routes
-router.get("/me", userController.getMyProfile);
+router.get(
+    "/me{/:id}",
+    protect,
+    authorizeRoles(["customer", "admin"]),
+    validate(userParams),
+    getMyProfile
+);
 
 // Export the router to be used in other files
 module.exports = router; 
