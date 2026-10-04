@@ -2,7 +2,7 @@ const express = require("express");
 
 const { protect } = require("../middleware/auth");
 const { authorizeRoles } = require("../middleware/authorizeRoles");
-const { userParams } = require("../schemas/paramsSchema");
+const { getUserParams } = require("../schemas/userSchema");
 
 const router = express.Router();
 
@@ -19,7 +19,7 @@ router.get(
     "/:id",
     protect,
     authorizeRoles(["admin"]),
-    validate(userParams),
+    validate(getUserParams),
     getMyProfile
 );
 
