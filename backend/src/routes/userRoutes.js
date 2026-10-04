@@ -11,9 +11,14 @@ const { getMyProfile } = require("../controllers/userController");
 
 // Define routes
 router.get(
-    "/me{/:id}",
+    "/me",
     protect,
-    authorizeRoles(["customer", "admin"]),
+    getMyProfile
+);
+router.get(
+    "/:id",
+    protect,
+    authorizeRoles(["admin"]),
     validate(userParams),
     getMyProfile
 );
