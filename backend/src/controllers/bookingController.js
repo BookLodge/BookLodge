@@ -10,6 +10,7 @@ const getMyBookings = async (req, res, next) => {
 
     const [bookings, total] = await Promise.all([
       Booking.find(filter)
+        .select("-liteApiPrebookId -liteApiTransactionId -__v")
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
