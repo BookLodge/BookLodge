@@ -1,19 +1,14 @@
 const { AppError } = require("../errors");
-
 const { protect } = require("../middleware/auth");
-
 const { sendSuccess } = require("../utils/apiResponse");
-
 
 exports.getMyProfile = async (req, res) => {
     const id = req.user.id 
-
     if (req.user.role === "admin") {
         id = req.params.id
     }
-
+    
     const user = await User.findById(id).select("-password");
-
     if (!user) {
         throw new AppError("User not found.", 404);
     };
