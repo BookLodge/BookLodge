@@ -6,13 +6,15 @@ const { registerSchema, loginSchema } = require("../schemas/authSchema");
 const registerUser = async (req, res) => {
   try {
     // Validate user input
-    const { error } = registerSchema.validate(req.body);
+    const result = registerSchema.safeParse(req.body);
 
-    if (error) {
+    if (!result.success) {
       return res.status(400).json({
-        message: error.details[0].message
+        message: result.error.issues[0].message
       });
     }
+
+    const { firstName, lastName, email, password, phone, role } = result.data;
 
     const { firstName, lastName, email, password, phone, role } = req.body;
 
@@ -62,15 +64,15 @@ const registerUser = async (req, res) => {
 const loginUser = async (req, res) => {
   try {
     // Validate login input
-    const { error } = loginSchema.validate(req.body);
+    const result = loginSchema.safeParse(req.body);
 
-    if (error) {
+    if (!result.success) {
       return res.status(400).json({
-        message: error.details[0].message
+        message: result.error.issues[0].message
       });
     }
 
-    const { email, password } = req.body;
+    const { email, password } = result.data;
 
     // Find user
     const user = await User.findOne({ email });

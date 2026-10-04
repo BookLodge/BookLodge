@@ -1,39 +1,27 @@
 const jwt = require("jsonwebtoken");
+const { AppError } = require("../errors");
 
 const protect = (req, res, next) => {
-  try {
-    // Get the Authorization header
-    const authHeader = req.headers.authorization;
+  const authHeader = req.headers.authorization;
 
-    if (!authHeader) {
-      return res.status(401).json({
-        message: "No token provided"
-      });
-    }
-
-    // Check that it starts with Bearer
-    if (!authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({
-        message: "Invalid authorization format"
-      });
-    }
-
-    // Extract the token
-    const token = authHeader.split(" ")[1];
-
-    // Verify the token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    // Store the decoded user information in req.user
-    req.user = decoded;
-
-    // Continue to the next middleware/controller
-    next();
-  } catch (error) {
-    return res.status(401).json({
-      message: "Invalid or expired token"
-    });
+  if (!authHeader) {
+    return next(new AppError("No token provided", 401));
   }
+
+  if (!authHeader.startsWith("Bearer ")) {
+    return next(new AppError("Invalid authorization format", 401));
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  jwt.verify(token, process.env.JWT_SECRET, (error, decoded) => {
+    if (error) {
+      return next(new AppError("Invalid or expired token", 401));
+    }
+
+    req.user = decoded;
+    next();
+  });
 };
 
 module.exports = {
