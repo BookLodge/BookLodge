@@ -2,7 +2,7 @@ const { AppError } = require("../errors");
 const { sendSuccess } = require("../utils/apiResponse");
 
 exports.getMyProfile = async (req, res) => {
-    const id = req.user.id 
+    let id = req.user.id
     if (req.user.role === "admin") {
         id = req.params.id
     }
