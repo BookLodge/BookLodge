@@ -2,7 +2,7 @@ const express = require("express");
 
 const { protect } = require("../middleware/auth");
 const { authorizeRoles } = require("../middleware/authorizeRoles");
-const { getUserParams } = require("../schemas/userSchema");
+const getUserParams = require("../schemas/userSchema");
 
 const router = express.Router();
 
