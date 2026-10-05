@@ -5,6 +5,8 @@ const env = {
 	  PORT: process.env.PORT || 5000,
 	  MONGO_URI: process.env.MONGO_URI,
 	  MONGO_URI_TEST: process.env.MONGO_URI_TEST,
+	  JWT_SECRET: process.env.JWT_SECRET,
+JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "1d",
 };
 
-module.exports = env;
+module.exports = parsed.data;

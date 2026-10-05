@@ -36,8 +36,8 @@ const userSchema = new mongoose.Schema(
 
     role: {
       type: String,
-      enum: ["customer", "guest", "admin"],
-      default: "guest"
+      enum: ["customer", "admin"],
+      default: "customer"
     },
 
     isActive: {
@@ -51,13 +51,10 @@ const userSchema = new mongoose.Schema(
 );
 
 // Hash password before saving a new user or changed password
-userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) {
-    return next();
+userSchema.pre("save", async function () {
+  if (this.isModified("password")) {
+    this.password = await bcrypt.hash(this.password, 10);
   }
-
-  this.password = await bcrypt.hash(this.password, 10);
-  next();
 });
 
 module.exports = mongoose.model("User", userSchema);

@@ -1,5 +1,14 @@
-const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+
+const {
+  comparePassword,
+  generateToken
+} = require("../utils/authHelper");
+
+const {
+  sendSuccess,
+  sendError
+} = require("../utils/apiResponse");
 
 const registerUser = async (req, res) => {
   const {
@@ -15,9 +24,11 @@ const registerUser = async (req, res) => {
   const existingUser = await User.findOne({ email });
 
   if (existingUser) {
-    return res.status(409).json({
-      message: "Email already registered"
-    });
+    return sendError(
+      res,
+      "Email already registered",
+      409
+    );
   }
 
   // Create user
@@ -31,17 +42,21 @@ const registerUser = async (req, res) => {
   });
 
   // Don't send the password back to the user
-  res.status(201).json({
-    message: "User registered successfully",
-    user: {
-      id: user._id,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      phone: user.phone,
-      role: user.role
-    }
-  });
+  return sendSuccess(
+    res,
+    "User registered successfully",
+    {
+      user: {
+        id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        phone: user.phone,
+        role: user.role
+      }
+    },
+    201
+  );
 };
 
 const loginUser = async (req, res) => {
@@ -51,47 +66,45 @@ const loginUser = async (req, res) => {
   const user = await User.findOne({ email });
 
   if (!user) {
-    return res.status(401).json({
-      message: "Invalid email or password"
-    });
+    return sendError(
+      res,
+      "Invalid email or password",
+      401
+    );
   }
 
   // Check password
-  const isPasswordCorrect = await bcrypt.compare(
+  const isPasswordCorrect = await comparePassword(
     password,
     user.password
   );
 
   if (!isPasswordCorrect) {
-    return res.status(401).json({
-      message: "Invalid email or password"
-    });
+    return sendError(
+      res,
+      "Invalid email or password",
+      401
+    );
   }
 
-  // Create JWT
-  const token = jwt.sign(
+  // Generate JWT
+  const token = generateToken(user);
+
+  return sendSuccess(
+    res,
+    "Login successful",
     {
-      userId: user._id,
-      role: user.role
-    },
-    process.env.JWT_SECRET,
-    {
-      expiresIn: "1d"
+      token,
+      user: {
+        id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        phone: user.phone,
+        role: user.role
+      }
     }
   );
-
-  res.status(200).json({
-    message: "Login successful",
-    token,
-    user: {
-      id: user._id,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      phone: user.phone,
-      role: user.role
-    }
-  });
 };
 
 module.exports = {
