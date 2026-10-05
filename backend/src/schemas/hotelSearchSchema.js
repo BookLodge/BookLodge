@@ -58,6 +58,18 @@ const liteApiHotelSearchResponseSchema = z.object({
   ),
 });
 
+const ratePriceSchema = z.object({
+  amount: z.number(),
+  currency: z.string(),
+});
+
+const hotelStartingRateSchema = ratePriceSchema.extend({
+  offerId: z.string(),
+  roomName: z.string(),
+  boardName: z.string(),
+  refundable: z.boolean(),
+});
+
 const hotelSearchResponseSchema = z.object({
   hotels: z.array(
     z.object({
@@ -66,20 +78,14 @@ const hotelSearchResponseSchema = z.object({
       photo: z.string(),
       address: z.string(),
       rating: z.number(),
-      startingRate: z.object({
-        offerId: z.string(),
-        roomName: z.string(),
-        boardName: z.string(),
-        amount: z.number(),
-        currency: z.string(),
-        refundable: z.boolean(),
-      }),
+      startingRate: hotelStartingRateSchema,
     })
   ),
 });
 
 module.exports = {
   hotelSearchSchema,
+  ratePriceSchema,
   liteApiHotelSearchRequestSchema,
   liteApiHotelSearchResponseSchema,
   hotelSearchResponseSchema,
