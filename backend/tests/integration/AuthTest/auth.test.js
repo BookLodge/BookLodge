@@ -4,17 +4,17 @@ import { registerSchema, loginSchema } from "../../src/schemas/authSchema.js";
 describe("auth validation schemas", () => {
   it("accepts a valid registration payload", () => {
     const result = registerSchema.parse({
-      firstName: "Jane",
-      lastName: "Doe",
-      email: "jane@example.com",
+      firstName: "Sarah",
+      lastName: "Titilayo",
+      email: "sarah@example.com",
       password: "secret123",
       phone: "08012345678",
     });
 
     expect(result).toMatchObject({
-      firstName: "Jane",
-      lastName: "Doe",
-      email: "jane@example.com",
+      firstName: "Sarah",
+      lastName: "Titilayo",
+      email: "sarah@example.com",
       phone: "08012345678",
       role: "customer",
     });
@@ -22,8 +22,8 @@ describe("auth validation schemas", () => {
 
   it("rejects invalid registration input", () => {
     const result = registerSchema.safeParse({
-      firstName: "Jane",
-      lastName: "Doe",
+      firstName: "Sarah",
+      lastName: "Titilayo",
       email: "not-an-email",
       password: "123",
       phone: "08012345678",
@@ -34,12 +34,12 @@ describe("auth validation schemas", () => {
 
   it("accepts a valid login payload", () => {
     const result = loginSchema.parse({
-      email: "jane@example.com",
+      email: "sarah@example.com",
       password: "secret123",
     });
 
     expect(result).toMatchObject({
-      email: "jane@example.com",
+      email: "sarah@example.com",
       password: "secret123",
     });
   });

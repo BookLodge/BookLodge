@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const { AppError } = require("../errors");
+const env = require('../config/env');
 
 const protect = (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -14,7 +15,7 @@ const protect = (req, res, next) => {
 
   const token = authHeader.split(" ")[1];
 
-  jwt.verify(token, process.env.JWT_SECRET, (error, decoded) => {
+  jwt.verify(token, env.JWT_SECRET, (error, decoded) => {
     if (error) {
       return next(new AppError("Invalid or expired token", 401));
     }
