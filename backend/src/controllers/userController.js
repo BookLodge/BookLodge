@@ -1,5 +1,4 @@
 const { AppError } = require("../errors");
-const { protect } = require("../middleware/auth");
 const { sendSuccess } = require("../utils/apiResponse");
 
 exports.getMyProfile = async (req, res) => {
