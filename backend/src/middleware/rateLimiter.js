@@ -12,7 +12,7 @@ const loginLimiter = rateLimit({
   standardHeaders: "draft-7",
   legacyHeaders: false,
   keyGenerator: (req) => {
-    const email = String(req.body?.email ?? "").trim().toLowerCase();
+    const email = req.body.email;
     return `${ipKeyGenerator(req.ip)}|${email}`;
   },
   handler: rateLimitHandler(
@@ -27,7 +27,7 @@ const registerLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => ipKeyGenerator(req.ip),
   handler: rateLimitHandler(
-    "Too many accounts created from this IP. Please try again in an hour."
+    "Too many requests. Please try again in an hour."
   ),
 });
 
