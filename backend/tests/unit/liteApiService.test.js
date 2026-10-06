@@ -275,3 +275,262 @@ describe("LiteApiService.searchHotels", () => {
     expect(error).toMatchObject({ statusCode: 502, message: "Hotel search failed" });
   });
 });
+
+const rateCriteria = () => ({
+  checkin: "2026-10-20",
+  checkout: "2026-10-23",
+  occupancies: [{ adults: 2, children: [7, 12] }],
+  currency: "USD",
+  guestNationality: "NG",
+});
+
+const hotelDetails = (overrides = {}) => ({
+  data: {
+    id: "hotel-123",
+    name: "Example Hotel",
+    description: "A comfortable hotel...",
+    main_photo: "https://cdn.example.com/hotel-123.jpg",
+    address: "123 Example Street",
+    city: "Lagos",
+    country: "NG",
+    starRating: 4,
+    location: { latitude: 6.5244, longitude: 3.3792 },
+    facilities: ["Swimming Pool", "Free WiFi"],
+    checkin: "03:00 PM",
+    checkout: "11:00 AM",
+    ...overrides,
+  },
+});
+
+const hotelRates = (entries) =>
+  liteApiResponse(entries ?? [{ hotel: liteApiHotel(), roomTypes: [roomType()] }]);
+
+const setupDetails = ({ details = hotelDetails(), rates = hotelRates() } = {}) => {
+  const client = {
+    get: vi.fn().mockResolvedValue({ data: details }),
+    post: vi.fn().mockResolvedValue({ data: rates }),
+  };
+  return { client, service: new LiteApiService(client) };
+};
+
+const bookLodgeHotel = () => ({
+  id: "hotel-123",
+  name: "Example Hotel",
+  description: "A comfortable hotel...",
+  photo: "https://cdn.example.com/hotel-123.jpg",
+  address: "123 Example Street",
+  city: "Lagos",
+  country: "NG",
+  rating: 4,
+  location: { latitude: 6.5244, longitude: 3.3792 },
+  facilities: ["Swimming Pool", "Free WiFi"],
+  checkin: "03:00 PM",
+  checkout: "11:00 AM",
+  rates: [
+    {
+      offerId: "offer-abc",
+      roomName: "Deluxe King Room",
+      boardName: "Breakfast Included",
+      amount: 412.76,
+      currency: "USD",
+      refundable: true,
+    },
+  ],
+});
+
+const httpError = (status) =>
+  Object.assign(new Error(`Request failed with status code ${status}`), {
+    isAxiosError: true,
+    response: { status, data: {} },
+  });
+
+describe("LiteApiService.getHotelDetails", () => {
+  it("calls the hotel details and hotel rates endpoints", async () => {
+    const { client, service } = setupDetails();
+
+    await service.getHotelDetails("hotel-123", rateCriteria());
+
+    expect(client.get).toHaveBeenCalledTimes(1);
+    expect(client.post).toHaveBeenCalledTimes(1);
+  });
+
+  it("requests the hotel details with the hotel id", async () => {
+    const { client, service } = setupDetails();
+
+    await service.getHotelDetails("hotel-123", rateCriteria());
+
+    expect(client.get).toHaveBeenCalledWith("/data/hotel", { params: { hotelId: "hotel-123" } });
+  });
+
+  it("posts the rates request to the hotel rates endpoint", async () => {
+    const { client, service } = setupDetails();
+
+    await service.getHotelDetails("hotel-123", rateCriteria());
+
+    expect(client.post.mock.calls[0][0]).toBe("/hotels/rates");
+  });
+
+  it("sends the hotel id as a hotelIds array", async () => {
+    const { client, service } = setupDetails();
+
+    await service.getHotelDetails("hotel-123", rateCriteria());
+
+    expect(sentBody(client).hotelIds).toEqual(["hotel-123"]);
+    expect(sentBody(client)).not.toHaveProperty("hotelId");
+  });
+
+  it("sends the rate criteria to the rates endpoint", async () => {
+    const { client, service } = setupDetails();
+
+    await service.getHotelDetails("hotel-123", rateCriteria());
+
+    expect(sentBody(client)).toMatchObject(rateCriteria());
+  });
+
+  it("includes hotel data in the rates request", async () => {
+    const { client, service } = setupDetails();
+
+    await service.getHotelDetails("hotel-123", rateCriteria());
+
+    expect(sentBody(client).includeHotelData).toBe(true);
+  });
+
+  it("does not cap the rates per hotel", async () => {
+    const { client, service } = setupDetails();
+
+    await service.getHotelDetails("hotel-123", rateCriteria());
+
+    expect(sentBody(client)).not.toHaveProperty("maxRatesPerHotel");
+  });
+
+  it("rejects invalid rate criteria with an AppError before calling LiteAPI", async () => {
+    const { client, service } = setupDetails();
+
+    await expect(
+      service.getHotelDetails("hotel-123", { ...rateCriteria(), checkin: "20-10-2026" })
+    ).rejects.toMatchObject({ statusCode: 400, message: "Invalid hotel details request" });
+
+    expect(client.get).not.toHaveBeenCalled();
+    expect(client.post).not.toHaveBeenCalled();
+  });
+
+  it("converts a hotel details HTTP failure into an ExternalAPIError", async () => {
+    const client = { get: vi.fn().mockRejectedValue(httpError(500)), post: vi.fn() };
+    const service = new LiteApiService(client);
+
+    await expect(service.getHotelDetails("hotel-123", rateCriteria())).rejects.toBeInstanceOf(
+      ExternalAPIError
+    );
+    expect(client.post).not.toHaveBeenCalled();
+  });
+
+  it("converts a LiteAPI hotel details error into an ExternalAPIError", async () => {
+    const { service } = setupDetails({
+      details: { error: { code: 401, message: "Invalid API key" } },
+    });
+
+    await expect(service.getHotelDetails("hotel-123", rateCriteria())).rejects.toMatchObject({
+      statusCode: 502,
+      message: "Hotel details failed",
+    });
+  });
+
+  it("rejects a hotel details response that does not satisfy the provider schema", async () => {
+    const { client, service } = setupDetails({ details: { data: { id: "hotel-123" } } });
+
+    await expect(service.getHotelDetails("hotel-123", rateCriteria())).rejects.toMatchObject({
+      statusCode: 502,
+      message: "Hotel details failed",
+    });
+    expect(client.post).not.toHaveBeenCalled();
+  });
+
+  it("converts a hotel rates HTTP failure into an ExternalAPIError", async () => {
+    const client = {
+      get: vi.fn().mockResolvedValue({ data: hotelDetails() }),
+      post: vi.fn().mockRejectedValue(httpError(500)),
+    };
+    const service = new LiteApiService(client);
+
+    await expect(service.getHotelDetails("hotel-123", rateCriteria())).rejects.toBeInstanceOf(
+      ExternalAPIError
+    );
+  });
+
+  it("converts a LiteAPI hotel rates error into an ExternalAPIError", async () => {
+    const { service } = setupDetails({
+      rates: { error: { code: 500, message: "Internal error" } },
+    });
+
+    await expect(service.getHotelDetails("hotel-123", rateCriteria())).rejects.toMatchObject({
+      statusCode: 502,
+      message: "Hotel details failed",
+    });
+  });
+
+  it("rejects a hotel rates response that does not satisfy the provider schema", async () => {
+    const { service } = setupDetails({ rates: { data: [], hotels: [{ id: "hotel-123" }] } });
+
+    await expect(service.getHotelDetails("hotel-123", rateCriteria())).rejects.toMatchObject({
+      statusCode: 502,
+      message: "Hotel details failed",
+    });
+  });
+
+  it("maps the hotel details and hotel rates responses together", async () => {
+    const { service } = setupDetails({
+      rates: hotelRates([
+        {
+          hotel: liteApiHotel({ id: "hotel-999", name: "Other Hotel" }),
+          roomTypes: [roomType({ offerId: "offer-other" })],
+        },
+        { hotel: liteApiHotel(), roomTypes: [roomType()] },
+      ]),
+    });
+
+    const result = await service.getHotelDetails("hotel-123", rateCriteria());
+
+    expect(result).toEqual(bookLodgeHotel());
+  });
+
+  it("throws an AppError when the mapped BookLodge response is invalid", async () => {
+    // The mapper only produces an invalid response for provider data that cannot occur,
+    // so it is swapped for a broken one to reach the service's own guard.
+    const mapper = require("../../src/services/hotelDetailsMapper.js");
+    const servicePath = require.resolve("../../src/services/liteApiService.js");
+    const original = mapper.mapHotelDetailsResponse;
+
+    mapper.mapHotelDetailsResponse = () => ({ id: 1 });
+    delete require.cache[servicePath];
+    const { LiteApiService: LiteApiServiceWithBrokenMapper } = require(servicePath);
+
+    try {
+      const client = {
+        get: vi.fn().mockResolvedValue({ data: hotelDetails() }),
+        post: vi.fn().mockResolvedValue({ data: hotelRates() }),
+      };
+      const service = new LiteApiServiceWithBrokenMapper(client);
+
+      const error = await service
+        .getHotelDetails("hotel-123", rateCriteria())
+        .catch((err) => err);
+
+      expect(error).toBeInstanceOf(AppError);
+      expect(error).toMatchObject({
+        statusCode: 500,
+        message: "Failed to build the hotel details response",
+      });
+    } finally {
+      mapper.mapHotelDetailsResponse = original;
+      delete require.cache[servicePath];
+    }
+  });
+
+  it("returns the mapped BookLodge response", async () => {
+    const { service } = setupDetails();
+
+    const result = await service.getHotelDetails("hotel-123", rateCriteria());
+
+    expect(result).toEqual(bookLodgeHotel());
+  });
+});
