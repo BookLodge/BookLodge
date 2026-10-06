@@ -31,6 +31,9 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1024).max(MAX_PORT).default(5000),
 
+    // Frontend (allowed CORS origin)
+  FRONTEND_URL: z.url().default('http://localhost:3000'),
+
   // Database
   MONGO_URI: z.url(),
 
