@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 
 // Source modules are CommonJS; loading them through Node keeps one instance of each module.
 const require = createRequire(import.meta.url);
-const { mapHotelDetailsResponse } = require("../../src/services/hotelDetailsMapper.js");
+const { mapHotelDetailsResponse } = require("../../src/services/liteapi/mappers/hotelDetailsMapper.js");
 
 const hotelDetails = (overrides = {}) => ({
   data: {

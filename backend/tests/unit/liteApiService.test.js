@@ -4,8 +4,10 @@ import { createRequire } from "node:module";
 // Source modules are CommonJS. Loading them through Node instead of `import`
 // keeps one instance of each class, so instanceof checks hold across the boundary.
 const require = createRequire(import.meta.url);
-const { LiteApiService } = require("../../src/services/liteApiService.js");
+const { LiteApiService } = require("../../src/services/liteapi/liteApiService.js");
 const { AppError, ExternalAPIError } = require("../../src/errors.js");
+const { mapLocationSearchResponse } = require("../../src/services/liteapi/mappers/locationSearchMapper.js");
+const { locationSearchResponseSchema } = require("../../src/services/liteapi/schemas/locationSearchSchema.js");
 
 const searchRequest = () => ({
   placeId: "ChIJ...",
@@ -496,8 +498,8 @@ describe("LiteApiService.getHotelDetails", () => {
   it("throws an AppError when the mapped BookLodge response is invalid", async () => {
     // The mapper only produces an invalid response for provider data that cannot occur,
     // so it is swapped for a broken one to reach the service's own guard.
-    const mapper = require("../../src/services/hotelDetailsMapper.js");
-    const servicePath = require.resolve("../../src/services/liteApiService.js");
+    const mapper = require("../../src/services/liteapi/mappers/hotelDetailsMapper.js");
+    const servicePath = require.resolve("../../src/services/liteapi/liteApiService.js");
     const original = mapper.mapHotelDetailsResponse;
 
     mapper.mapHotelDetailsResponse = () => ({ id: 1 });
@@ -532,5 +534,112 @@ describe("LiteApiService.getHotelDetails", () => {
     const result = await service.getHotelDetails("hotel-123", rateCriteria());
 
     expect(result).toEqual(bookLodgeHotel());
+  });
+});
+
+const liteApiPlace = (overrides = {}) => ({
+  placeId: "ChIJdd4hrwug2EcRmSrV3Vo6llI",
+  displayName: "London",
+  formattedAddress: "UK",
+  ...overrides,
+});
+
+const liteApiPlaces = (places = [liteApiPlace()]) => ({ data: places });
+
+const setupLocations = (providerBody = liteApiPlaces()) => {
+  const client = { get: vi.fn().mockResolvedValue({ data: providerBody }) };
+  return { client, service: new LiteApiService(client) };
+};
+
+describe("LiteApiService.searchLocations", () => {
+  it("calls the LiteAPI places endpoint", async () => {
+    const { client, service } = setupLocations();
+
+    await service.searchLocations("London");
+
+    expect(client.get).toHaveBeenCalledWith("/data/places", { params: { textQuery: "London" } });
+  });
+
+  it("sends the query as the textQuery parameter", async () => {
+    const { client, service } = setupLocations();
+
+    await service.searchLocations("London");
+
+    expect(client.get.mock.calls[0][1].params.textQuery).toBe("London");
+  });
+
+  it("rejects invalid input with an AppError before calling LiteAPI", async () => {
+    const { client, service } = setupLocations();
+
+    await expect(service.searchLocations(42)).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Invalid location search request",
+    });
+
+    expect(client.get).not.toHaveBeenCalled();
+  });
+
+  it("converts an HTTP failure into an ExternalAPIError", async () => {
+    const service = new LiteApiService({ get: vi.fn().mockRejectedValue(httpError(500)) });
+
+    await expect(service.searchLocations("London")).rejects.toBeInstanceOf(ExternalAPIError);
+  });
+
+  it("converts a LiteAPI error response into an ExternalAPIError", async () => {
+    const { service } = setupLocations({ error: { code: 429, message: "Too many requests" } });
+
+    await expect(service.searchLocations("London")).rejects.toMatchObject({
+      statusCode: 502,
+      message: "Location search failed",
+    });
+  });
+
+  it("rejects a response that does not satisfy the provider schema", async () => {
+    const { service } = setupLocations({ data: [{ placeId: "ChIJdd4hrwug2EcRmSrV3Vo6llI" }] });
+
+    await expect(service.searchLocations("London")).rejects.toMatchObject({
+      statusCode: 502,
+      message: "Location search failed",
+    });
+  });
+
+  it("passes the validated provider response to the mapper", async () => {
+    const providerBody = liteApiPlaces([
+      liteApiPlace(),
+      liteApiPlace({
+        placeId: "ChIJhRwB-yFawokR5TLuyM-8LmY",
+        displayName: "Paris",
+        formattedAddress: "France",
+      }),
+    ]);
+    const { service } = setupLocations(providerBody);
+
+    const result = await service.searchLocations("London");
+
+    expect(result).toEqual(mapLocationSearchResponse(providerBody));
+  });
+
+  it("validates the mapped BookLodge response", async () => {
+    const { service } = setupLocations();
+
+    const result = await service.searchLocations("London");
+
+    expect(locationSearchResponseSchema.safeParse(result).success).toBe(true);
+  });
+
+  it("returns the normalized BookLodge response", async () => {
+    const { service } = setupLocations();
+
+    const result = await service.searchLocations("London");
+
+    expect(result).toEqual({
+      locations: [
+        {
+          placeId: "ChIJdd4hrwug2EcRmSrV3Vo6llI",
+          name: "London",
+          address: "UK",
+        },
+      ],
+    });
   });
 });

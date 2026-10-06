@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 
 // Source modules are CommonJS; loading them through Node keeps one instance of each module.
 const require = createRequire(import.meta.url);
-const { mapHotelSearchRequest, mapHotelSearchResponse } = require("../../src/services/hotelSearchMapper.js");
+const { mapHotelSearchRequest, mapHotelSearchResponse } = require("../../src/services/liteapi/mappers/hotelSearchMapper.js");
 
 const searchRequest = () => ({
   placeId: "ChIJ...",

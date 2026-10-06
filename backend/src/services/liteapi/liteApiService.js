@@ -1,17 +1,23 @@
 const liteApiClient = require("./liteApiClient");
-const { mapHotelSearchRequest, mapHotelSearchResponse } = require("./hotelSearchMapper");
-const { mapHotelDetailsResponse } = require("./hotelDetailsMapper");
-const { AppError, ExternalAPIError } = require("../errors");
+const { mapHotelSearchRequest, mapHotelSearchResponse } = require("./mappers/hotelSearchMapper");
+const { mapHotelDetailsResponse } = require("./mappers/hotelDetailsMapper");
+const { mapLocationSearchResponse } = require("./mappers/locationSearchMapper");
+const { AppError, ExternalAPIError } = require("../../errors");
 const {
   liteApiHotelSearchRequestSchema,
   liteApiHotelSearchResponseSchema,
   hotelSearchResponseSchema,
-} = require("../schemas/hotelSearchSchema");
+} = require("./schemas/hotelSearchSchema");
 const {
   hotelDetailsRequestSchema,
   liteApiHotelDetailsResponseSchema,
   hotelDetailsResponseSchema,
-} = require("../schemas/hotelDetailsSchema");
+} = require("./schemas/hotelDetailsSchema");
+const {
+  locationSearchRequestSchema,
+  liteApiPlacesResponseSchema,
+  locationSearchResponseSchema,
+} = require("./schemas/locationSearchSchema");
 
 const toClientStatus = (providerStatus) => (providerStatus === 404 ? 404 : 502);
 
@@ -142,6 +148,51 @@ class LiteApiService {
     );
     if (!mappedResult.success) {
       throw new AppError("Failed to build the hotel details response", 500);
+    }
+
+    return mappedResult.data;
+  }
+
+  async searchLocations(query) {
+    const requestResult = locationSearchRequestSchema.safeParse({ query });
+    if (!requestResult.success) {
+      throw new AppError("Invalid location search request", 400);
+    }
+
+    let response;
+    try {
+      response = await this.http.get("/data/places", {
+        params: { textQuery: requestResult.data.query },
+      });
+    } catch (err) {
+      const providerStatus = err.response?.status;
+      console.error(
+        "[liteApi] Location search request failed:",
+        err.message,
+        providerStatus,
+        err.response?.data?.error
+      );
+      throw new ExternalAPIError("Location search failed", toClientStatus(providerStatus));
+    }
+
+    if (response.data?.error) {
+      console.error("[liteApi] LiteAPI rejected the location search request:", response.data.error);
+      throw new ExternalAPIError(
+        "Location search failed",
+        toClientStatus(response.status ?? response.data.error.code)
+      );
+    }
+
+    const responseResult = liteApiPlacesResponseSchema.safeParse(response.data);
+    if (!responseResult.success) {
+      throw new ExternalAPIError("Location search failed");
+    }
+
+    const mappedResult = locationSearchResponseSchema.safeParse(
+      mapLocationSearchResponse(responseResult.data)
+    );
+    if (!mappedResult.success) {
+      throw new AppError("Failed to build the location search response", 500);
     }
 
     return mappedResult.data;

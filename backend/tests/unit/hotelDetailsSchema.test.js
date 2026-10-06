@@ -6,7 +6,7 @@ const {
   hotelDetailsRequestSchema,
   liteApiHotelDetailsResponseSchema,
   hotelDetailsResponseSchema,
-} = require("../../src/schemas/hotelDetailsSchema.js");
+} = require("../../src/services/liteapi/schemas/hotelDetailsSchema.js");
 
 const requestBody = () => ({
   checkin: "2026-10-20",
