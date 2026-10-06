@@ -12,7 +12,7 @@ const loginLimiter = rateLimit({
   standardHeaders: "draft-7",
   legacyHeaders: false,
   keyGenerator: (req) => {
-    const email = req.body.email;
+    const email = req.body?.email;
     return `${ipKeyGenerator(req.ip)}|${email}`;
   },
   handler: rateLimitHandler(
