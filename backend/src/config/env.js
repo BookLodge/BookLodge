@@ -44,7 +44,6 @@ const envSchema = z.object({
   // External API
   LITEAPI_BASE_URL: z.url(),
   LITEAPI_KEY: z.string().min(1),
-  LITEAPI_SECRET: z.string().min(1),
 });
 
 const parsed = envSchema.safeParse({ ...process.env, NODE_ENV });
