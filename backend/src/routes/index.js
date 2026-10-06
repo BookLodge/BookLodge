@@ -6,6 +6,7 @@ const router = express.Router();
 const userRoutes = require("../routes/userRoutes"); 
 const bookingRoutes = require("./bookingRoutes");
 
+//Remaining domain routers are added here as they are implemented:
 // Mount each domain router under its API prefix.
 router.use('/health', healthRoutes);
 
