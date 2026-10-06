@@ -1,5 +1,6 @@
 const toBookLodgeRate = (offerId, rate) => ({
   offerId,
+  occupancyNumber: rate.occupancyNumber,
   roomName: rate.name,
   boardName: rate.boardName,
   amount: rate.retailRate.total[0].amount,

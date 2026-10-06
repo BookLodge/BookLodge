@@ -19,6 +19,7 @@ const searchRequest = () => ({
 });
 
 const rate = (overrides = {}) => ({
+  occupancyNumber: 1,
   name: "Deluxe King Room",
   boardName: "Breakfast Included",
   retailRate: { total: [{ amount: 412.76, currency: "USD" }] },
@@ -331,6 +332,7 @@ const bookLodgeHotel = () => ({
   rates: [
     {
       offerId: "offer-abc",
+      occupancyNumber: 1,
       roomName: "Deluxe King Room",
       boardName: "Breakfast Included",
       amount: 412.76,
@@ -641,5 +643,176 @@ describe("LiteApiService.searchLocations", () => {
         },
       ],
     });
+  });
+});
+
+const prebookRequest = () => ({ offerId: "offer-abc123" });
+
+const liteApiPrebook = () => ({
+  data: {
+    prebookId: "prebook-xyz789",
+    offerId: "offer-abc123",
+    hotelId: "hotel-123",
+    price: 690.21,
+    currency: "USD",
+    transactionId: "tr_9f8c7b6a",
+    secretKey: "sk_live_abc123",
+  },
+});
+
+const bookLodgePrebook = () => ({
+  prebookId: "prebook-xyz789",
+  offerId: "offer-abc123",
+  hotelId: "hotel-123",
+  price: { amount: 690.21, currency: "USD" },
+  transactionId: "tr_9f8c7b6a",
+  secretKey: "sk_live_abc123",
+});
+
+const setupPrebook = (providerBody = liteApiPrebook()) => {
+  const client = { post: vi.fn().mockResolvedValue({ data: providerBody }) };
+  return { client, service: new LiteApiService(client) };
+};
+
+describe("LiteApiService.prebook", () => {
+  it("posts the prebook request to the LiteAPI prebook endpoint", async () => {
+    const { client, service } = setupPrebook();
+
+    await service.prebook(prebookRequest());
+
+    expect(client.post).toHaveBeenCalledTimes(1);
+    expect(client.post.mock.calls[0][0]).toBe("/rates/prebook");
+  });
+
+  it("sends the exact LiteAPI prebook request body", async () => {
+    const { client, service } = setupPrebook();
+
+    await service.prebook(prebookRequest());
+
+    expect(sentBody(client)).toEqual({ offerId: "offer-abc123", usePaymentSdk: true });
+  });
+
+  it("keeps the payment sdk flag and occupancy data out of the caller's hands", async () => {
+    const { client, service } = setupPrebook();
+
+    await service.prebook({ ...prebookRequest(), usePaymentSdk: false, occupancies: [] });
+
+    expect(sentBody(client)).toEqual({ offerId: "offer-abc123", usePaymentSdk: true });
+  });
+
+  it("rejects a request without an offer id with an AppError", async () => {
+    const { service } = setupPrebook();
+
+    await expect(service.prebook({})).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Invalid prebook request",
+    });
+  });
+
+  it("rejects an offer id that is not a string with an AppError", async () => {
+    const { service } = setupPrebook();
+
+    await expect(service.prebook({ offerId: 42 })).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Invalid prebook request",
+    });
+  });
+
+  it("does not call LiteAPI for an invalid request", async () => {
+    const { client, service } = setupPrebook();
+
+    await service.prebook({ offerId: 42 }).catch(() => {});
+
+    expect(client.post).not.toHaveBeenCalled();
+  });
+
+  it("converts an HTTP failure into an ExternalAPIError", async () => {
+    const service = new LiteApiService({ post: vi.fn().mockRejectedValue(httpError(500)) });
+
+    await expect(service.prebook(prebookRequest())).rejects.toMatchObject({
+      statusCode: 502,
+      message: "Prebooking failed",
+    });
+  });
+
+  it("keeps the provider status when LiteAPI answers 404", async () => {
+    const service = new LiteApiService({ post: vi.fn().mockRejectedValue(httpError(404)) });
+
+    await expect(service.prebook(prebookRequest())).rejects.toMatchObject({
+      statusCode: 404,
+      message: "Prebooking failed",
+    });
+  });
+
+  it("converts a LiteAPI error response into an ExternalAPIError", async () => {
+    const { service } = setupPrebook({ error: { code: 429, message: "Too many requests" } });
+
+    await expect(service.prebook(prebookRequest())).rejects.toMatchObject({
+      statusCode: 502,
+      message: "Prebooking failed",
+    });
+  });
+
+  it("rejects an invalid LiteAPI response before mapping it", async () => {
+    // An incomplete provider response would map into a BookLodge response that fails
+    // validation with its own 500, so the 502 here proves the mapper never ran.
+    const { service } = setupPrebook({ data: { prebookId: "prebook-xyz789" } });
+
+    await expect(service.prebook(prebookRequest())).rejects.toMatchObject({
+      statusCode: 502,
+      message: "Prebooking failed",
+    });
+  });
+
+  it("throws an AppError when the mapped BookLodge response is invalid", async () => {
+    // The mapper only produces an invalid response for provider data that cannot occur,
+    // so it is swapped for a broken one to reach the service's own guard.
+    const mapper = require("../../src/services/liteapi/mappers/prebookMapper.js");
+    const servicePath = require.resolve("../../src/services/liteapi/liteApiService.js");
+    const original = mapper.mapPrebookResponse;
+
+    mapper.mapPrebookResponse = () => ({ prebookId: 1 });
+    delete require.cache[servicePath];
+    const { LiteApiService: LiteApiServiceWithBrokenMapper } = require(servicePath);
+
+    try {
+      const client = { post: vi.fn().mockResolvedValue({ data: liteApiPrebook() }) };
+      const service = new LiteApiServiceWithBrokenMapper(client);
+
+      const error = await service.prebook(prebookRequest()).catch((err) => err);
+
+      expect(error).toBeInstanceOf(AppError);
+      expect(error).toMatchObject({
+        statusCode: 500,
+        message: "Failed to build the prebook response",
+      });
+    } finally {
+      mapper.mapPrebookResponse = original;
+      delete require.cache[servicePath];
+    }
+  });
+
+  it("rejects a provider response whose price is nested", async () => {
+    const body = {
+      data: {
+        ...liteApiPrebook().data,
+        price: { amount: 690.21, currency: "USD" },
+      },
+    };
+    const { service } = setupPrebook(body);
+
+    await expect(service.prebook(prebookRequest())).rejects.toMatchObject({
+      statusCode: 502,
+      message: "Prebooking failed",
+    });
+  });
+
+  it("returns the validated BookLodge prebook response", async () => {
+    const { service } = setupPrebook();
+
+    const result = await service.prebook(prebookRequest());
+
+    expect(result).toEqual(bookLodgePrebook());
+    expect(result).not.toHaveProperty("data");
   });
 });

@@ -1,10 +1,9 @@
 const { z } = require("zod");
-const { hotelSearchSchema, ratePriceSchema } = require("./hotelSearchSchema");
-
-const hotelDetailsRequestSchema = hotelSearchSchema.omit({ placeId: true });
+const { ratePriceSchema } = require("./hotelSearchSchema");
 
 const hotelDetailsRateSchema = ratePriceSchema.extend({
   offerId: z.string(),
+  occupancyNumber: z.number().int(),
   roomName: z.string(),
   boardName: z.string(),
   refundable: z.boolean(),
@@ -50,7 +49,6 @@ const hotelDetailsResponseSchema = z.object({
 });
 
 module.exports = {
-  hotelDetailsRequestSchema,
   liteApiHotelDetailsResponseSchema,
   hotelDetailsResponseSchema,
 };

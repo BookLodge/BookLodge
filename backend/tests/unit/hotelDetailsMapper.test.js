@@ -24,6 +24,7 @@ const hotelDetails = (overrides = {}) => ({
 });
 
 const rate = (overrides = {}) => ({
+  occupancyNumber: 1,
   name: "Deluxe King Room",
   boardName: "Breakfast Included",
   retailRate: { total: [{ amount: 412.76, currency: "USD" }] },
@@ -43,6 +44,7 @@ const hotelRates = (entries) => ({
 
 const bookLodgeRate = (overrides = {}) => ({
   offerId: "offer-abc",
+  occupancyNumber: 1,
   roomName: "Deluxe King Room",
   boardName: "Breakfast Included",
   amount: 412.76,
@@ -271,5 +273,44 @@ describe("mapHotelDetailsResponse", () => {
     ]);
 
     expect(mapHotelDetailsResponse(hotelDetails(), response).rates).toEqual([]);
+  });
+
+  it("preserves the occupancy number of each rate", () => {
+    const response = hotelRates([
+      {
+        hotelId: "hotel-123",
+        roomTypes: [
+          roomType({ offerId: "offer-single", rates: [rate({ occupancyNumber: 1 })] }),
+          roomType({ offerId: "offer-double", rates: [rate({ occupancyNumber: 2 })] }),
+        ],
+      },
+    ]);
+
+    const { rates } = mapHotelDetailsResponse(hotelDetails(), response);
+
+    expect(rates).toEqual([
+      bookLodgeRate({ offerId: "offer-single", occupancyNumber: 1 }),
+      bookLodgeRate({ offerId: "offer-double", occupancyNumber: 2 }),
+    ]);
+  });
+
+  it("keeps two rates that share an offerId apart by occupancy number", () => {
+    const response = hotelRates([
+      {
+        hotelId: "hotel-123",
+        roomTypes: [
+          roomType({
+            rates: [rate({ occupancyNumber: 1 }), rate({ occupancyNumber: 2 })],
+          }),
+        ],
+      },
+    ]);
+
+    const { rates } = mapHotelDetailsResponse(hotelDetails(), response);
+
+    expect(rates.map((item) => [item.offerId, item.occupancyNumber])).toEqual([
+      ["offer-abc", 1],
+      ["offer-abc", 2],
+    ]);
   });
 });

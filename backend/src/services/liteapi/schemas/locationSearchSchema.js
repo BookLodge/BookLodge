@@ -1,9 +1,5 @@
 const { z } = require("zod");
 
-const locationSearchRequestSchema = z.object({
-  query: z.string(),
-});
-
 const liteApiPlacesResponseSchema = z.object({
   data: z.array(
     z.object({
@@ -25,7 +21,6 @@ const locationSearchResponseSchema = z.object({
 });
 
 module.exports = {
-  locationSearchRequestSchema,
   liteApiPlacesResponseSchema,
   locationSearchResponseSchema,
 };

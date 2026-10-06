@@ -1,18 +1,5 @@
 const { z } = require("zod");
-
-const occupancySchema = z.object({
-  adults: z.number().int(),
-  children: z.array(z.number().int()),
-});
-
-const hotelSearchSchema = z.object({
-  placeId: z.string(),
-  checkin: z.iso.date(),
-  checkout: z.iso.date(),
-  occupancies: z.array(occupancySchema),
-  currency: z.string(),
-  guestNationality: z.string(),
-});
+const { hotelSearchSchema } = require("../../../schemas/hotelSearchSchema");
 
 const liteApiHotelSearchRequestSchema = hotelSearchSchema.extend({
   maxRatesPerHotel: z.number().int(),
@@ -28,6 +15,7 @@ const liteApiHotelSearchResponseSchema = z.object({
           offerId: z.string(),
           rates: z.array(
             z.object({
+              occupancyNumber: z.number().int(),
               name: z.string(),
               boardName: z.string(),
               retailRate: z.object({
@@ -84,9 +72,8 @@ const hotelSearchResponseSchema = z.object({
 });
 
 module.exports = {
-  hotelSearchSchema,
-  ratePriceSchema,
   liteApiHotelSearchRequestSchema,
   liteApiHotelSearchResponseSchema,
+  ratePriceSchema,
   hotelSearchResponseSchema,
 };
