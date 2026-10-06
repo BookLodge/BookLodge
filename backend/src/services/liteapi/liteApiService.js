@@ -3,7 +3,9 @@ const { mapHotelSearchRequest, mapHotelSearchResponse } = require("./mappers/hot
 const { mapHotelDetailsResponse } = require("./mappers/hotelDetailsMapper");
 const { mapLocationSearchResponse } = require("./mappers/locationSearchMapper");
 const { mapPrebookResponse } = require("./mappers/prebookMapper");
+const { mapBookRateRequest, mapBookRateResponse } = require("./mappers/bookRateMapper");
 const { AppError, ExternalAPIError } = require("../../errors");
+const { bookRateRequestSchema } = require("../../schemas/bookRateSchema");
 const { hotelDetailsRequestSchema } = require("../../schemas/hotelDetailsSchema");
 const { locationSearchRequestSchema } = require("../../schemas/locationSearchSchema");
 const { prebookSchema } = require("../../schemas/prebookSchema");
@@ -24,6 +26,11 @@ const {
   liteApiPrebookResponseSchema,
   prebookResponseSchema,
 } = require("./schemas/prebookSchema");
+const {
+  liteApiBookRateRequestSchema,
+  liteApiBookRateResponseSchema,
+  bookRateResponseSchema,
+} = require("./schemas/bookRateSchema");
 
 const toClientStatus = (providerStatus) => (providerStatus === 404 ? 404 : 502);
 
@@ -243,6 +250,54 @@ class LiteApiService {
     const mappedResult = prebookResponseSchema.safeParse(mapPrebookResponse(responseResult.data));
     if (!mappedResult.success) {
       throw new AppError("Failed to build the prebook response", 500);
+    }
+
+    return mappedResult.data;
+  }
+
+  async bookRate(params) {
+    const requestResult = bookRateRequestSchema.safeParse(params);
+    if (!requestResult.success) {
+      throw new AppError("Invalid book rate request", 400);
+    }
+
+    const providerRequestResult = liteApiBookRateRequestSchema.safeParse(
+      mapBookRateRequest(requestResult.data)
+    );
+    if (!providerRequestResult.success) {
+      throw new AppError("Invalid book rate request", 400);
+    }
+
+    let response;
+    try {
+      response = await this.http.post("/rates/book", providerRequestResult.data);
+    } catch (err) {
+      const providerStatus = err.response?.status;
+      console.error(
+        "[liteApi] Book rate request failed:",
+        err.message,
+        providerStatus,
+        err.response?.data?.error
+      );
+      throw new ExternalAPIError("Booking failed", toClientStatus(providerStatus));
+    }
+
+    if (response.data?.error) {
+      console.error("[liteApi] LiteAPI rejected the book rate request:", response.data.error);
+      throw new ExternalAPIError(
+        "Booking failed",
+        toClientStatus(response.status ?? response.data.error.code)
+      );
+    }
+
+    const responseResult = liteApiBookRateResponseSchema.safeParse(response.data);
+    if (!responseResult.success) {
+      throw new ExternalAPIError("Booking failed");
+    }
+
+    const mappedResult = bookRateResponseSchema.safeParse(mapBookRateResponse(responseResult.data));
+    if (!mappedResult.success) {
+      throw new AppError("Failed to build the booking response", 500);
     }
 
     return mappedResult.data;

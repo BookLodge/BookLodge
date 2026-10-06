@@ -28,7 +28,7 @@ const mapHotelDetailsResponse = (hotelDetailsResponse, hotelRatesResponse) => {
   return {
     id: data.id,
     name: data.name,
-    description: data.description,
+    description: data.hotelDescription,
     photo: data.main_photo,
     address: data.address,
     city: data.city,
@@ -38,9 +38,9 @@ const mapHotelDetailsResponse = (hotelDetailsResponse, hotelRatesResponse) => {
       latitude: data.location.latitude,
       longitude: data.location.longitude,
     },
-    facilities: data.facilities,
-    checkin: data.checkin,
-    checkout: data.checkout,
+    facilities: data.hotelFacilities,
+    checkin: data.checkinCheckoutTimes.checkin_start,
+    checkout: data.checkinCheckoutTimes.checkout,
     rates: ratesEntry ? mapRates(ratesEntry) : [],
   };
 };

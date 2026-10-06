@@ -9,16 +9,15 @@ const hotelDetails = (overrides = {}) => ({
   data: {
     id: "hotel-123",
     name: "Example Hotel",
-    description: "A comfortable hotel...",
+    hotelDescription: "<p>A comfortable hotel...</p>",
     main_photo: "https://example.com/main.jpg",
     address: "123 Example Street",
     city: "Lagos",
     country: "NG",
     starRating: 4,
     location: { latitude: 6.5244, longitude: 3.3792 },
-    facilities: ["Swimming Pool", "Free WiFi"],
-    checkin: "03:00 PM",
-    checkout: "11:00 AM",
+    hotelFacilities: ["Swimming Pool", "Free WiFi"],
+    checkinCheckoutTimes: { checkin_start: "03:00 PM", checkout: "11:00 AM" },
     ...overrides,
   },
 });
@@ -60,7 +59,7 @@ describe("mapHotelDetailsResponse", () => {
     expect(result).toEqual({
       id: "hotel-123",
       name: "Example Hotel",
-      description: "A comfortable hotel...",
+      description: "<p>A comfortable hotel...</p>",
       photo: "https://example.com/main.jpg",
       address: "123 Example Street",
       city: "Lagos",

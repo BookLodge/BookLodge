@@ -13,7 +13,7 @@ const liteApiHotelDetailsResponseSchema = z.object({
   data: z.object({
     id: z.string(),
     name: z.string(),
-    description: z.string(),
+    hotelDescription: z.string(),
     main_photo: z.string(),
     address: z.string(),
     city: z.string(),
@@ -23,9 +23,11 @@ const liteApiHotelDetailsResponseSchema = z.object({
       latitude: z.number(),
       longitude: z.number(),
     }),
-    facilities: z.array(z.string()),
-    checkin: z.string(),
-    checkout: z.string(),
+    hotelFacilities: z.array(z.string()),
+    checkinCheckoutTimes: z.object({
+      checkin_start: z.string(),
+      checkout: z.string(),
+    }),
   }),
 });
 

@@ -291,16 +291,15 @@ const hotelDetails = (overrides = {}) => ({
   data: {
     id: "hotel-123",
     name: "Example Hotel",
-    description: "A comfortable hotel...",
+    hotelDescription: "<p>A comfortable hotel...</p>",
     main_photo: "https://cdn.example.com/hotel-123.jpg",
     address: "123 Example Street",
     city: "Lagos",
     country: "NG",
     starRating: 4,
     location: { latitude: 6.5244, longitude: 3.3792 },
-    facilities: ["Swimming Pool", "Free WiFi"],
-    checkin: "03:00 PM",
-    checkout: "11:00 AM",
+    hotelFacilities: ["Swimming Pool", "Free WiFi"],
+    checkinCheckoutTimes: { checkin_start: "03:00 PM", checkout: "11:00 AM" },
     ...overrides,
   },
 });
@@ -319,7 +318,7 @@ const setupDetails = ({ details = hotelDetails(), rates = hotelRates() } = {}) =
 const bookLodgeHotel = () => ({
   id: "hotel-123",
   name: "Example Hotel",
-  description: "A comfortable hotel...",
+  description: "<p>A comfortable hotel...</p>",
   photo: "https://cdn.example.com/hotel-123.jpg",
   address: "123 Example Street",
   city: "Lagos",
@@ -813,6 +812,240 @@ describe("LiteApiService.prebook", () => {
     const result = await service.prebook(prebookRequest());
 
     expect(result).toEqual(bookLodgePrebook());
+    expect(result).not.toHaveProperty("data");
+  });
+});
+
+const bookRateRequest = () => ({
+  prebookId: "prebook-xyz789",
+  clientReference: "BL-2f1c9a4e-7d3b-4f8a-9c1e-5a6b7c8d9e0f",
+  holder: { firstName: "Ada", lastName: "Lovelace", email: "ada@example.com" },
+  guests: [
+    { occupancyNumber: 1, firstName: "Ada", lastName: "Lovelace", email: "ada@example.com" },
+    { occupancyNumber: 2, firstName: "Grace", lastName: "Hopper", email: "grace@example.com" },
+  ],
+  transactionId: "tr_9f8c7b6a",
+});
+
+const liteApiBookRateRequest = () => ({
+  prebookId: "prebook-xyz789",
+  clientReference: "BL-2f1c9a4e-7d3b-4f8a-9c1e-5a6b7c8d9e0f",
+  holder: { firstName: "Ada", lastName: "Lovelace", email: "ada@example.com" },
+  guests: [
+    { occupancyNumber: 1, firstName: "Ada", lastName: "Lovelace", email: "ada@example.com" },
+    { occupancyNumber: 2, firstName: "Grace", lastName: "Hopper", email: "grace@example.com" },
+  ],
+  payment: { method: "TRANSACTION_ID", transactionId: "tr_9f8c7b6a" },
+});
+
+const liteApiBookRateResponse = () => ({
+  data: {
+    bookingId: "b_7f3d9c2a",
+    clientReference: "BL-2f1c9a4e-7d3b-4f8a-9c1e-5a6b7c8d9e0f",
+    status: "CONFIRMED",
+    hotelConfirmationCode: "HC-1234",
+  },
+});
+
+const bookLodgeBookRate = () => ({ bookingId: "b_7f3d9c2a" });
+
+const setupBookRate = (providerBody = liteApiBookRateResponse()) => {
+  const client = { post: vi.fn().mockResolvedValue({ data: providerBody }) };
+  return { client, service: new LiteApiService(client) };
+};
+
+describe("LiteApiService.bookRate", () => {
+  it("posts the booking request to the LiteAPI book endpoint", async () => {
+    const { client, service } = setupBookRate();
+
+    await service.bookRate(bookRateRequest());
+
+    expect(client.post).toHaveBeenCalledTimes(1);
+    expect(client.post.mock.calls[0][0]).toBe("/rates/book");
+  });
+
+  it("sends the exact mapped LiteAPI request", async () => {
+    const { client, service } = setupBookRate();
+
+    await service.bookRate(bookRateRequest());
+
+    expect(sentBody(client)).toEqual(liteApiBookRateRequest());
+  });
+
+  it("pays with the prebook transaction id", async () => {
+    const { client, service } = setupBookRate();
+
+    await service.bookRate(bookRateRequest());
+
+    expect(sentBody(client).payment).toEqual({
+      method: "TRANSACTION_ID",
+      transactionId: "tr_9f8c7b6a",
+    });
+  });
+
+  it("passes the caller's client reference through untouched", async () => {
+    const { client, service } = setupBookRate();
+
+    await service.bookRate(bookRateRequest());
+
+    expect(sentBody(client).clientReference).toBe(bookRateRequest().clientReference);
+  });
+
+  it("drops fields the BookLodge contract does not define", async () => {
+    const { client, service } = setupBookRate();
+
+    await service.bookRate({
+      ...bookRateRequest(),
+      secretKey: "sk_live_abc123",
+      payment: { method: "CASH", transactionId: "tr_other" },
+      hotelConfirmationCode: "HC-1",
+    });
+
+    expect(sentBody(client)).toEqual(liteApiBookRateRequest());
+    expect(sentBody(client)).not.toHaveProperty("secretKey");
+  });
+
+  it.each([
+    ["a missing prebook id", ({ prebookId, ...rest }) => rest],
+    ["a missing client reference", ({ clientReference, ...rest }) => rest],
+    ["a missing transaction id", ({ transactionId, ...rest }) => rest],
+    [
+      "an invalid holder email",
+      () => ({
+        ...bookRateRequest(),
+        holder: { ...bookRateRequest().holder, email: "not-an-email" },
+      }),
+    ],
+    [
+      "guest data that is not valid",
+      () => ({
+        ...bookRateRequest(),
+        guests: [{ ...bookRateRequest().guests[0], occupancyNumber: "1" }],
+      }),
+    ],
+  ])("rejects %s with an AppError before calling LiteAPI", async (label, broken) => {
+    const { client, service } = setupBookRate();
+
+    await expect(service.bookRate(broken(bookRateRequest()))).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Invalid book rate request",
+    });
+
+    expect(client.post).not.toHaveBeenCalled();
+  });
+
+  it("throws an AppError when the mapped provider request is invalid", async () => {
+    // The mapper only produces an invalid provider request if it is broken, so it is
+    // swapped for one to reach the service's own guard.
+    const mapper = require("../../src/services/liteapi/mappers/bookRateMapper.js");
+    const servicePath = require.resolve("../../src/services/liteapi/liteApiService.js");
+    const original = mapper.mapBookRateRequest;
+
+    mapper.mapBookRateRequest = () => ({ prebookId: "prebook-xyz789" });
+    delete require.cache[servicePath];
+    const { LiteApiService: LiteApiServiceWithBrokenMapper } = require(servicePath);
+
+    try {
+      const client = { post: vi.fn().mockResolvedValue({ data: liteApiBookRateResponse() }) };
+      const service = new LiteApiServiceWithBrokenMapper(client);
+
+      const error = await service.bookRate(bookRateRequest()).catch((err) => err);
+
+      expect(error).toBeInstanceOf(AppError);
+      expect(error).toMatchObject({ statusCode: 400, message: "Invalid book rate request" });
+      expect(client.post).not.toHaveBeenCalled();
+    } finally {
+      mapper.mapBookRateRequest = original;
+      delete require.cache[servicePath];
+    }
+  });
+
+  it("converts an HTTP failure into an ExternalAPIError", async () => {
+    const service = new LiteApiService({ post: vi.fn().mockRejectedValue(httpError(500)) });
+
+    await expect(service.bookRate(bookRateRequest())).rejects.toMatchObject({
+      statusCode: 502,
+      message: "Booking failed",
+    });
+  });
+
+  it("keeps the provider status when LiteAPI answers 404", async () => {
+    const service = new LiteApiService({ post: vi.fn().mockRejectedValue(httpError(404)) });
+
+    await expect(service.bookRate(bookRateRequest())).rejects.toMatchObject({
+      statusCode: 404,
+      message: "Booking failed",
+    });
+  });
+
+  it("keeps credentials and provider detail out of the client error", async () => {
+    const axiosError = Object.assign(new Error("Request failed with status code 500"), {
+      isAxiosError: true,
+      config: { headers: { "X-API-Key": "test-api-key" } },
+      response: { status: 500, data: { error: "internal provider detail" } },
+    });
+    const service = new LiteApiService({ post: vi.fn().mockRejectedValue(axiosError) });
+
+    const error = await service.bookRate(bookRateRequest()).catch((err) => err);
+
+    expect(error).toBeInstanceOf(ExternalAPIError);
+    expect(error.message).toBe("Booking failed");
+    expect(error.message).not.toMatch(/test-api-key|internal provider detail/);
+  });
+
+  it("converts a LiteAPI error response into an ExternalAPIError", async () => {
+    const { service } = setupBookRate({
+      error: { code: 409, message: "Offer is no longer available" },
+    });
+
+    await expect(service.bookRate(bookRateRequest())).rejects.toMatchObject({
+      statusCode: 502,
+      message: "Booking failed",
+    });
+  });
+
+  it("rejects a provider response that does not satisfy the schema", async () => {
+    const { service } = setupBookRate({ data: { status: "CONFIRMED" } });
+
+    await expect(service.bookRate(bookRateRequest())).rejects.toMatchObject({
+      statusCode: 502,
+      message: "Booking failed",
+    });
+  });
+
+  it("throws an AppError when the mapped BookLodge response is invalid", async () => {
+    const mapper = require("../../src/services/liteapi/mappers/bookRateMapper.js");
+    const servicePath = require.resolve("../../src/services/liteapi/liteApiService.js");
+    const original = mapper.mapBookRateResponse;
+
+    mapper.mapBookRateResponse = () => ({ bookingId: 1 });
+    delete require.cache[servicePath];
+    const { LiteApiService: LiteApiServiceWithBrokenMapper } = require(servicePath);
+
+    try {
+      const client = { post: vi.fn().mockResolvedValue({ data: liteApiBookRateResponse() }) };
+      const service = new LiteApiServiceWithBrokenMapper(client);
+
+      const error = await service.bookRate(bookRateRequest()).catch((err) => err);
+
+      expect(error).toBeInstanceOf(AppError);
+      expect(error).toMatchObject({
+        statusCode: 500,
+        message: "Failed to build the booking response",
+      });
+    } finally {
+      mapper.mapBookRateResponse = original;
+      delete require.cache[servicePath];
+    }
+  });
+
+  it("returns the validated BookLodge booking response", async () => {
+    const { service } = setupBookRate();
+
+    const result = await service.bookRate(bookRateRequest());
+
+    expect(result).toEqual(bookLodgeBookRate());
+    expect(result).not.toHaveProperty("hotelConfirmationCode");
     expect(result).not.toHaveProperty("data");
   });
 });
