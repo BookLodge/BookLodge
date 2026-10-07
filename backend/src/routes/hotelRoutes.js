@@ -1,22 +1,11 @@
 const express = require("express");
 
-const {
-  getHotelDetails,
-  searchHotels,
-  searchLocation,
-} = require("../controllers/hotelController");
-const { validateBody, validateParams, validateQuery } = require("../middleware/validators");
+const { getHotelDetails, searchHotels } = require("../controllers/hotelController");
+const { validateBody, validateParams } = require("../middleware/validators");
 const { hotelDetailsParamsSchema, hotelDetailsRequestSchema } = require("../schemas/hotelDetailsSchema");
 const { hotelSearchSchema } = require("../schemas/hotelSearchSchema");
-const { locationSearchRequestSchema } = require("../schemas/locationSearchSchema");
 
 const router = express.Router();
-
-router.get(
-  "/location-search",
-  validateQuery(locationSearchRequestSchema),
-  searchLocation
-);
 
 router.post(
   "/search",

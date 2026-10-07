@@ -26,11 +26,11 @@ afterEach(() => vi.restoreAllMocks());
 
 const search = (path) => fetch(`${base}${path}`);
 
-describe("GET /api/hotels/location-search", () => {
+describe("GET /api/locations/search", () => {
   it("returns the mapped locations for a query", async () => {
     const spy = vi.spyOn(liteApiService, "searchLocations").mockResolvedValue(locations);
 
-    const response = await search("/api/hotels/location-search?query=Paris");
+    const response = await search("/api/locations/search?query=Paris");
 
     expect(response.status).toBe(200);
     expect(spy).toHaveBeenCalledWith("Paris");
@@ -44,7 +44,7 @@ describe("GET /api/hotels/location-search", () => {
   it("hands the service the query string rather than the query object", async () => {
     const spy = vi.spyOn(liteApiService, "searchLocations").mockResolvedValue(locations);
 
-    await search("/api/hotels/location-search?query=Paris&unexpected=1");
+    await search("/api/locations/search?query=Paris&unexpected=1");
 
     expect(spy).toHaveBeenCalledWith("Paris");
   });
@@ -52,7 +52,7 @@ describe("GET /api/hotels/location-search", () => {
   it("rejects a request with no query and never reaches the provider", async () => {
     const spy = vi.spyOn(liteApiService, "searchLocations");
 
-    const response = await search("/api/hotels/location-search");
+    const response = await search("/api/locations/search");
 
     expect(response.status).toBe(400);
     expect((await response.json()).success).toBe(false);
@@ -62,7 +62,7 @@ describe("GET /api/hotels/location-search", () => {
   it("rejects an empty query without reaching the provider", async () => {
     const spy = vi.spyOn(liteApiService, "searchLocations");
 
-    const response = await search("/api/hotels/location-search?query=");
+    const response = await search("/api/locations/search?query=");
 
     expect(response.status).toBe(400);
     expect((await response.json()).message).toBe("Query is required");
@@ -74,7 +74,7 @@ describe("GET /api/hotels/location-search", () => {
       new ExternalAPIError("Location search failed", 502)
     );
 
-    const response = await search("/api/hotels/location-search?query=Paris");
+    const response = await search("/api/locations/search?query=Paris");
 
     expect(response.status).toBe(502);
     expect(await response.json()).toMatchObject({

@@ -4,6 +4,7 @@ const authRoutes = require('./authRoutes');
 const userRoutes = require('./userRoutes');
 const hotelRoutes = require('./hotelRoutes');
 const bookingRoutes = require('./bookingRoutes');
+const locationRoutes = require('./locationRoutes');
 
 const router = express.Router();
 
@@ -13,6 +14,7 @@ router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
 router.use('/hotels', hotelRoutes);
 router.use('/bookings', bookingRoutes);
+router.use('/locations', locationRoutes);
 
 // router.use('/admin', adminRoutes);
 
