@@ -1,7 +1,12 @@
 const express = require("express");
 
-const { searchHotels, searchLocation } = require("../controllers/hotelSearchController");
-const { validateBody, validateQuery } = require("../middleware/validators");
+const {
+  getHotelDetails,
+  searchHotels,
+  searchLocation,
+} = require("../controllers/hotelController");
+const { validateBody, validateParams, validateQuery } = require("../middleware/validators");
+const { hotelDetailsParamsSchema, hotelDetailsRequestSchema } = require("../schemas/hotelDetailsSchema");
 const { hotelSearchSchema } = require("../schemas/hotelSearchSchema");
 const { locationSearchRequestSchema } = require("../schemas/locationSearchSchema");
 
@@ -17,6 +22,13 @@ router.post(
   "/search",
   validateBody(hotelSearchSchema),
   searchHotels
+);
+
+router.post(
+  "/:hotelId/details",
+  validateParams(hotelDetailsParamsSchema),
+  validateBody(hotelDetailsRequestSchema),
+  getHotelDetails
 );
 
 module.exports = router;

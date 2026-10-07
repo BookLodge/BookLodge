@@ -1,6 +1,12 @@
 const { liteApiService } = require("../services/liteapi/liteApiService");
 const { sendSuccess } = require("../utils/apiResponse");
 
+const getHotelDetails = async (req, res) => {
+  const result = await liteApiService.getHotelDetails(req.params.hotelId, req.body);
+
+  sendSuccess(res, "Hotel details retrieved successfully", result);
+};
+
 const searchLocation = async (req, res) => {
   const result = await liteApiService.searchLocations(req.query.query);
 
@@ -14,6 +20,7 @@ const searchHotels = async (req, res) => {
 };
 
 module.exports = {
+  getHotelDetails,
   searchHotels,
   searchLocation,
 };
