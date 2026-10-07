@@ -4,7 +4,7 @@ const {
   getHotelDetails,
   searchHotels,
   searchLocation,
-} = require("../controllers/hotelSearchController");
+} = require("../controllers/hotelController");
 const { validateBody, validateParams, validateQuery } = require("../middleware/validators");
 const { hotelDetailsParamsSchema, hotelDetailsRequestSchema } = require("../schemas/hotelDetailsSchema");
 const { hotelSearchSchema } = require("../schemas/hotelSearchSchema");
