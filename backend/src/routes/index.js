@@ -3,6 +3,7 @@ const healthRoutes = require('./healthRoutes');
 const authRoutes = require('./authRoutes');
 const userRoutes = require('./userRoutes');
 const hotelRoutes = require('./hotelRoutes');
+const bookingRoutes = require('./bookingRoutes');
 
 const router = express.Router();
 
@@ -11,8 +12,8 @@ router.use('/health', healthRoutes);
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
 router.use('/hotels', hotelRoutes);
+router.use('/bookings', bookingRoutes);
 
-// router.use('/bookings', bookingRoutes);
 // router.use('/admin', adminRoutes);
 
 module.exports = router;
