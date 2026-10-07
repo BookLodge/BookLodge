@@ -1,8 +1,8 @@
 const express = require("express");
 
-const { searchLocation } = require("../controllers/hotelSeachController");
+const { searchLocation } = require("../controllers/hotelSearchController");
 const { validateQuery } = require("../middleware/validators");
-const { locationSearchRequestSchema } = require("../schemas/hotelSchema");
+const { locationSearchRequestSchema } = require("../schemas/locationSearchSchema");
 
 const router = express.Router();
 
