@@ -1,9 +1,9 @@
 const { AppError } = require("../errors");
-const { protect } = require("../middleware/auth");
+const User = require("../models/User");
 const { sendSuccess } = require("../utils/apiResponse");
 
 exports.getMyProfile = async (req, res) => {
-    const id = req.user.id 
+    let id = req.user.userId
     if (req.user.role === "admin") {
         id = req.params.id
     }
