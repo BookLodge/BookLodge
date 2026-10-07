@@ -7,6 +7,13 @@ const searchLocation = async (req, res) => {
   sendSuccess(res, "Locations retrieved successfully", result);
 };
 
+const searchHotels = async (req, res) => {
+  const result = await liteApiService.searchHotels(req.body);
+
+  sendSuccess(res, "Hotels retrieved successfully", result);
+};
+
 module.exports = {
+  searchHotels,
   searchLocation,
 };
