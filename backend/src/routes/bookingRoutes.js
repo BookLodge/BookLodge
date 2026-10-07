@@ -1,15 +1,15 @@
 const express = require("express");
 
-const { bookHotel } = require("../controllers/bookingController");
-
+const { bookHotel, prebookHotel } = require("../controllers/bookingController");
+const { protect } = require("../middleware/auth");
 const { validateBody } = require("../middleware/validators");
-
-const { bookHotelSchema } = require("../schemas/bookingSchema");
-
-const auth = require("../middleware/auth");
+const { bookHotelRequestSchema } = require("../schemas/bookRateSchema");
+const { prebookSchema } = require("../schemas/prebookSchema");
 
 const router = express.Router();
 
-router.post("/", auth, validateBody(bookHotelSchema), bookHotel);
+router.post("/prebook", validateBody(prebookSchema), prebookHotel);
+
+router.post("/", protect, validateBody(bookHotelRequestSchema), bookHotel);
 
 module.exports = router;
