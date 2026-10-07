@@ -580,6 +580,17 @@ describe("LiteApiService.searchLocations", () => {
     expect(client.get).not.toHaveBeenCalled();
   });
 
+  it("rejects an empty query with an AppError before calling LiteAPI", async () => {
+    const { client, service } = setupLocations();
+
+    await expect(service.searchLocations("")).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Invalid location search request",
+    });
+
+    expect(client.get).not.toHaveBeenCalled();
+  });
+
   it("converts an HTTP failure into an ExternalAPIError", async () => {
     const service = new LiteApiService({ get: vi.fn().mockRejectedValue(httpError(500)) });
 
