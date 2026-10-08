@@ -1,8 +1,9 @@
 const express = require("express");
 
 const { protect } = require("../middleware/auth");
-const { authorizeRoles } = require("../middleware/authorizeRoles");
-const { userParams } = require("../schemas/paramsSchema");
+const authorizeRoles = require("../middleware/authorizeRoles");
+const { validateParams } = require("../middleware/validators");
+const getUserParams = require("../schemas/userSchema");
 
 const router = express.Router();
 
@@ -11,10 +12,15 @@ const { getMyProfile } = require("../controllers/userController");
 
 // Define routes
 router.get(
-    "/me{/:id}",
+    "/me",
     protect,
-    authorizeRoles(["customer", "admin"]),
-    validate(userParams),
+    getMyProfile
+);
+router.get(
+    "/:id",
+    protect,
+    authorizeRoles("admin"),
+    validateParams(getUserParams),
     getMyProfile
 );
 
