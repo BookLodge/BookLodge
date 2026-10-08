@@ -1,6 +1,11 @@
 const express = require("express");
 
-const { bookHotel, prebookHotel, getBookingById } = require("../controllers/bookingController");
+const {
+  bookHotel,
+  prebookHotel,
+  getBookingById,
+  cancelBooking,
+} = require("../controllers/bookingController");
 const { protect } = require("../middleware/auth");
 const { validateBody, validateParams } = require("../middleware/validators");
 const { bookingIdParamsSchema } = require("../schemas/bookingSchema");
@@ -14,5 +19,7 @@ router.post("/prebook", validateBody(prebookSchema), prebookHotel);
 router.post("/", protect, validateBody(bookHotelRequestSchema), bookHotel);
 
 router.get("/:bookingId", protect, validateParams(bookingIdParamsSchema), getBookingById);
+
+router.put("/:bookingId", protect, validateParams(bookingIdParamsSchema), cancelBooking);
 
 module.exports = router;

@@ -1060,3 +1060,119 @@ describe("LiteApiService.bookRate", () => {
     expect(result).not.toHaveProperty("data");
   });
 });
+
+const liteApiCancellation = () => ({
+  data: {
+    bookingId: "hSq2gVDrf",
+    status: "CANCELLED",
+    cancellation_fee: 25,
+    refund_amount: 125,
+    currency: "USD",
+  },
+});
+
+const setupCancel = (providerBody = liteApiCancellation()) => {
+  const client = { put: vi.fn().mockResolvedValue({ data: providerBody, status: 200 }) };
+  return { client, service: new LiteApiService(client) };
+};
+
+describe("LiteApiService.cancelBooking", () => {
+  it("calls the LiteAPI bookings endpoint with the provider booking id", async () => {
+    const { client, service } = setupCancel();
+
+    await service.cancelBooking("hSq2gVDrf");
+
+    expect(client.put).toHaveBeenCalledTimes(1);
+    expect(client.put.mock.calls[0][0]).toBe("/bookings/hSq2gVDrf");
+  });
+
+  it("returns the mapped BookLodge cancellation", async () => {
+    const { service } = setupCancel();
+
+    const result = await service.cancelBooking("hSq2gVDrf");
+
+    expect(result).toEqual({
+      bookingId: "hSq2gVDrf",
+      status: "CANCELLED",
+      cancellationFee: 25,
+      refundAmount: 125,
+      currency: "USD",
+    });
+  });
+
+  it("collapses a cancellation with charges to CANCELLED and keeps the fee", async () => {
+    const { service } = setupCancel({
+      data: {
+        bookingId: "hSq2gVDrf",
+        status: "CANCELLED_WITH_CHARGES",
+        cancellation_fee: 150,
+        refund_amount: 0,
+        currency: "USD",
+      },
+    });
+
+    const result = await service.cancelBooking("hSq2gVDrf");
+
+    expect(result).toMatchObject({
+      status: "CANCELLED",
+      cancellationFee: 150,
+      refundAmount: 0,
+    });
+  });
+
+  it("reports an omitted fee, refund and currency as null", async () => {
+    const { service } = setupCancel({ data: { bookingId: "hSq2gVDrf", status: "CANCELLED" } });
+
+    const result = await service.cancelBooking("hSq2gVDrf");
+
+    expect(result).toMatchObject({
+      cancellationFee: null,
+      refundAmount: null,
+      currency: null,
+    });
+  });
+
+  it("rejects a response that does not satisfy the provider schema", async () => {
+    const { service } = setupCancel({ data: { status: "CANCELLED" } });
+
+    await expect(service.cancelBooking("hSq2gVDrf")).rejects.toBeInstanceOf(ExternalAPIError);
+  });
+
+  it("converts an HTTP failure into an ExternalAPIError", async () => {
+    const service = new LiteApiService({ put: vi.fn().mockRejectedValue(httpError(500)) });
+
+    await expect(service.cancelBooking("hSq2gVDrf")).rejects.toMatchObject({
+      statusCode: 502,
+      message: "Cancelling the booking failed",
+    });
+  });
+
+  it("maps a LiteAPI 404 to a 404 response", async () => {
+    const service = new LiteApiService({ put: vi.fn().mockRejectedValue(httpError(404)) });
+
+    await expect(service.cancelBooking("hSq2gVDrf")).rejects.toMatchObject({
+      statusCode: 404,
+      message: "Cancelling the booking failed",
+    });
+  });
+
+  it("keeps other LiteAPI failures at 502", async () => {
+    const service = new LiteApiService({ put: vi.fn().mockRejectedValue(httpError(503)) });
+
+    await expect(service.cancelBooking("hSq2gVDrf")).rejects.toMatchObject({
+      statusCode: 502,
+    });
+  });
+
+  it("converts a LiteAPI API-level error into an ExternalAPIError", async () => {
+    const { service } = setupCancel({ error: { code: 4008, message: "bookingId not found" } });
+
+    const error = await service.cancelBooking("hSq2gVDrf").catch((err) => err);
+
+    expect(error).toBeInstanceOf(ExternalAPIError);
+    expect(error).toMatchObject({
+      statusCode: 502,
+      message: "Cancelling the booking failed",
+    });
+  });
+});

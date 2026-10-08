@@ -32,8 +32,32 @@ const getBookingById = async (req, res) => {
   sendSuccess(res, "Booking retrieved successfully", booking);
 };
 
+const cancelBooking = async (req, res) => {
+  const booking = await Booking.findById(req.params.bookingId);
+
+  if (!booking) {
+    throw new AppError("Booking not found", 404);
+  }
+
+  if (booking.userId.toString() !== req.user.userId) {
+    throw new AppError("You are not authorized to cancel this booking", 403);
+  }
+
+  if (booking.status !== "CONFIRMED") {
+    throw new AppError("This booking cannot be cancelled", 400);
+  }
+
+  const result = await liteApiService.cancelBooking(booking.liteApi.bookingId);
+
+  booking.status = "CANCELLED";
+  await booking.save();
+
+  sendSuccess(res, "Booking cancelled successfully", result);
+};
+
 module.exports = {
   bookHotel,
   prebookHotel,
   getBookingById,
+  cancelBooking,
 };
