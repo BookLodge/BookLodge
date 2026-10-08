@@ -9,6 +9,7 @@ const { ExternalAPIError } = require("../../src/errors.js");
 const { generateToken } = require("../../src/utils/authHelper.js");
 const Booking = require("../../src/models/Booking.js");
 
+const ownerId = "507f1f77bcf86cd799439011";
 const bookingId = "507f1f77bcf86cd799439012";
 
 const bookingBody = {
@@ -20,7 +21,23 @@ const bookingBody = {
   transactionId: "txn_abc123",
 };
 
-const booked = { bookingId: "bk_abc123" };
+const bookedRate = {
+  clientReference: "BL-2f1c9a4e-7d3b-4f8a-9c1e-5a6b7c8d9e0f",
+  status: "CONFIRMED",
+  hotel: { hotelId: "lp1897", name: "Sample Hotel" },
+  stay: { checkin: "2026-11-02", checkout: "2026-11-05" },
+  rooms: [{ occupancyNumber: 1, roomName: "Standard Room", boardName: "Room Only" }],
+  holder: { firstName: "Ada", lastName: "Lovelace", email: "ada@example.com" },
+  price: { amount: 412.76, currency: "USD" },
+  liteApi: { bookingId: "b_7f3d9c2a" },
+};
+
+const savedBooking = {
+  _id: bookingId,
+  userId: ownerId,
+  ...bookedRate,
+  payment: { transactionId: "txn_abc123" },
+};
 
 let server;
 let base;
@@ -48,8 +65,9 @@ const book = (body, authToken = token) =>
   });
 
 describe("POST /api/bookings", () => {
-  it("returns 201 with the booking result", async () => {
-    const spy = vi.spyOn(liteApiService, "bookRate").mockResolvedValue(booked);
+  it("returns 201 with the persisted booking", async () => {
+    vi.spyOn(liteApiService, "bookRate").mockResolvedValue(bookedRate);
+    vi.spyOn(Booking, "create").mockResolvedValue(savedBooking);
 
     const response = await book(bookingBody);
 
@@ -57,13 +75,62 @@ describe("POST /api/bookings", () => {
     expect(await response.json()).toEqual({
       success: true,
       message: "Hotel booked successfully",
-      data: booked,
+      data: savedBooking,
     });
-    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("persists the booking against the authenticated user", async () => {
+    vi.spyOn(liteApiService, "bookRate").mockResolvedValue(bookedRate);
+    const create = vi.spyOn(Booking, "create").mockResolvedValue(savedBooking);
+
+    await book(bookingBody);
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create.mock.calls[0][0]).toEqual({
+      ...bookedRate,
+      userId: ownerId,
+      payment: { transactionId: "txn_abc123" },
+    });
+  });
+
+  it("stores only the fields the Booking model declares", async () => {
+    vi.spyOn(liteApiService, "bookRate").mockResolvedValue(bookedRate);
+    const create = vi.spyOn(Booking, "create").mockResolvedValue(savedBooking);
+
+    await book(bookingBody);
+
+    const persisted = create.mock.calls[0][0];
+    expect(persisted).not.toHaveProperty("prebookId");
+    expect(persisted).not.toHaveProperty("guests");
+    expect(persisted).not.toHaveProperty("transactionId");
+  });
+
+  it("does not persist when the provider rejects the booking", async () => {
+    vi.spyOn(liteApiService, "bookRate").mockRejectedValue(
+      new ExternalAPIError("Booking failed", 502)
+    );
+    const create = vi.spyOn(Booking, "create");
+
+    const response = await book(bookingBody);
+
+    expect(response.status).toBe(502);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("reports a duplicate booking as a conflict", async () => {
+    vi.spyOn(liteApiService, "bookRate").mockResolvedValue(bookedRate);
+    vi.spyOn(Booking, "create").mockRejectedValue(
+      Object.assign(new Error("E11000 duplicate key error"), { code: 11000 })
+    );
+
+    const response = await book(bookingBody);
+
+    expect(response.status).toBe(409);
   });
 
   it("passes the booking through with a server-minted client reference", async () => {
-    const spy = vi.spyOn(liteApiService, "bookRate").mockResolvedValue(booked);
+    const spy = vi.spyOn(liteApiService, "bookRate").mockResolvedValue(bookedRate);
+    vi.spyOn(Booking, "create").mockResolvedValue(savedBooking);
 
     await book(bookingBody);
 
@@ -73,7 +140,8 @@ describe("POST /api/bookings", () => {
   });
 
   it("ignores a client-supplied client reference", async () => {
-    const spy = vi.spyOn(liteApiService, "bookRate").mockResolvedValue(booked);
+    const spy = vi.spyOn(liteApiService, "bookRate").mockResolvedValue(bookedRate);
+    vi.spyOn(Booking, "create").mockResolvedValue(savedBooking);
 
     await book({ ...bookingBody, clientReference: "client-supplied" });
 
@@ -136,8 +204,6 @@ describe("POST /api/bookings", () => {
 });
 
 describe("GET /api/bookings/:bookingId", () => {
-  const ownerId = "507f1f77bcf86cd799439011";
-
   const storedBooking = {
     _id: bookingId,
     userId: ownerId,
