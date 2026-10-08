@@ -7,6 +7,9 @@ const app = require("../../src/app.js");
 const { liteApiService } = require("../../src/services/liteapi/liteApiService.js");
 const { ExternalAPIError } = require("../../src/errors.js");
 const { generateToken } = require("../../src/utils/authHelper.js");
+const Booking = require("../../src/models/Booking.js");
+
+const bookingId = "507f1f77bcf86cd799439012";
 
 const bookingBody = {
   prebookId: "pb_abc123",
@@ -129,5 +132,84 @@ describe("POST /api/bookings", () => {
       success: false,
       message: "Booking failed",
     });
+  });
+});
+
+describe("GET /api/bookings/:bookingId", () => {
+  const ownerId = "507f1f77bcf86cd799439011";
+
+  const storedBooking = {
+    _id: bookingId,
+    userId: ownerId,
+    clientReference: "BL-2f1c9d",
+    status: "CONFIRMED",
+    hotel: { hotelId: "lp1a2b3c", name: "Hotel Lutetia" },
+    stay: { checkin: "2026-11-02T00:00:00.000Z", checkout: "2026-11-05T00:00:00.000Z" },
+    price: { amount: 412.5, currency: "EUR" },
+  };
+
+  const getBooking = (id = bookingId, authToken = token) =>
+    fetch(`${base}/api/bookings/${id}`, {
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+    });
+
+  it("returns 200 with the booking", async () => {
+    vi.spyOn(Booking, "findOne").mockResolvedValue(storedBooking);
+
+    const response = await getBooking();
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      success: true,
+      message: "Booking retrieved successfully",
+      data: storedBooking,
+    });
+  });
+
+  it("scopes the lookup to the authenticated user", async () => {
+    const spy = vi.spyOn(Booking, "findOne").mockResolvedValue(storedBooking);
+
+    await getBooking();
+
+    expect(spy).toHaveBeenCalledWith({ _id: bookingId, userId: ownerId });
+  });
+
+  it("reports a booking the user does not own as not found", async () => {
+    vi.spyOn(Booking, "findOne").mockResolvedValue(null);
+
+    const response = await getBooking();
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toMatchObject({
+      success: false,
+      message: "Booking not found",
+    });
+  });
+
+  it("refuses a request with no token and never queries the database", async () => {
+    const spy = vi.spyOn(Booking, "findOne");
+
+    const response = await getBooking(bookingId, null);
+
+    expect(response.status).toBe(401);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("refuses an invalid token and never queries the database", async () => {
+    const spy = vi.spyOn(Booking, "findOne");
+
+    const response = await getBooking(bookingId, "not-a-token");
+
+    expect(response.status).toBe(401);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("rejects a malformed booking id without querying the database", async () => {
+    const spy = vi.spyOn(Booking, "findOne");
+
+    const response = await getBooking("not-an-object-id");
+
+    expect(response.status).toBe(400);
+    expect(spy).not.toHaveBeenCalled();
   });
 });

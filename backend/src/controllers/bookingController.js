@@ -1,4 +1,6 @@
 const { liteApiService } = require("../services/liteapi/liteApiService");
+const { AppError } = require("../errors");
+const Booking = require("../models/Booking");
 const { sendSuccess } = require("../utils/apiResponse");
 const { generateClientReference } = require("../utils/generateRef");
 
@@ -17,7 +19,21 @@ const prebookHotel = async (req, res) => {
   sendSuccess(res, "Hotel prebooked successfully", result);
 };
 
+const getBookingById = async (req, res) => {
+  const booking = await Booking.findOne({
+    _id: req.params.bookingId,
+    userId: req.user.userId,
+  });
+
+  if (!booking) {
+    throw new AppError("Booking not found", 404);
+  }
+
+  sendSuccess(res, "Booking retrieved successfully", booking);
+};
+
 module.exports = {
   bookHotel,
   prebookHotel,
+  getBookingById,
 };
