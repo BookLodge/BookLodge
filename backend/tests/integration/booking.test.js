@@ -10,6 +10,8 @@ const { generateToken } = require("../../src/utils/authHelper.js");
 const Booking = require("../../src/models/Booking.js");
 
 const ownerId = "507f1f77bcf86cd799439011";
+const strangerId = "507f1f77bcf86cd799439098";
+const adminId = "507f1f77bcf86cd7994390ad";
 const bookingId = "507f1f77bcf86cd799439012";
 
 const bookingBody = {
@@ -42,12 +44,14 @@ const savedBooking = {
 let server;
 let base;
 let token;
+let adminToken;
 
 beforeAll(async () => {
   server = app.listen(0);
   await new Promise((resolve) => server.once("listening", resolve));
   base = `http://127.0.0.1:${server.address().port}`;
-  token = generateToken({ _id: "507f1f77bcf86cd799439011", role: "customer" });
+  token = generateToken({ _id: ownerId, role: "customer" });
+  adminToken = generateToken({ _id: adminId, role: "admin" });
 });
 
 afterAll(() => new Promise((resolve) => server.close(resolve)));
@@ -252,6 +256,29 @@ describe("GET /api/bookings/:bookingId", () => {
     });
   });
 
+  it("lets an admin retrieve a booking the caller does not own", async () => {
+    const byId = vi.spyOn(Booking, "findById").mockResolvedValue(storedBooking);
+    const scoped = vi.spyOn(Booking, "findOne").mockResolvedValue(null);
+
+    const response = await getBooking(bookingId, adminToken);
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).data).toEqual(storedBooking);
+    expect(byId).toHaveBeenCalledWith(bookingId);
+    expect(scoped).not.toHaveBeenCalled();
+  });
+
+  it("keeps a customer scoped to their own bookings", async () => {
+    const byId = vi.spyOn(Booking, "findById").mockResolvedValue(storedBooking);
+    const scoped = vi.spyOn(Booking, "findOne").mockResolvedValue(null);
+
+    const response = await getBooking();
+
+    expect(response.status).toBe(404);
+    expect(scoped).toHaveBeenCalledWith({ _id: bookingId, userId: ownerId });
+    expect(byId).not.toHaveBeenCalled();
+  });
+
   it("refuses a request with no token and never queries the database", async () => {
     const spy = vi.spyOn(Booking, "findOne");
 
@@ -383,7 +410,6 @@ describe("GET /api/bookings/:bookingId/confirmation", () => {
 });
 
 describe("PUT /api/bookings/:bookingId", () => {
-  const ownerId = "507f1f77bcf86cd799439011";
   const providerBookingId = "hSq2gVDrf";
 
   const cancelled = {
@@ -448,9 +474,7 @@ describe("PUT /api/bookings/:bookingId", () => {
   });
 
   it("refuses a booking owned by another user and never reaches the provider", async () => {
-    vi.spyOn(Booking, "findById").mockResolvedValue(
-      storedBooking({ userId: "507f1f77bcf86cd799439099" })
-    );
+    vi.spyOn(Booking, "findById").mockResolvedValue(storedBooking({ userId: strangerId }));
     const spy = vi.spyOn(liteApiService, "cancelBooking");
 
     const response = await cancel();
@@ -460,6 +484,31 @@ describe("PUT /api/bookings/:bookingId", () => {
       success: false,
       message: "You are not authorized to cancel this booking",
     });
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("lets an admin cancel a booking the caller does not own", async () => {
+    const booking = storedBooking({ userId: strangerId });
+    vi.spyOn(Booking, "findById").mockResolvedValue(booking);
+    const spy = vi.spyOn(liteApiService, "cancelBooking").mockResolvedValue(cancelled);
+
+    const response = await cancel(bookingId, adminToken);
+
+    expect(response.status).toBe(200);
+    expect(booking.status).toBe("CANCELLED");
+    expect(booking.save).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith(providerBookingId);
+  });
+
+  it("still refuses an admin a booking that cannot be cancelled", async () => {
+    vi.spyOn(Booking, "findById").mockResolvedValue(
+      storedBooking({ userId: strangerId, status: "CANCELLED" })
+    );
+    const spy = vi.spyOn(liteApiService, "cancelBooking");
+
+    const response = await cancel(bookingId, adminToken);
+
+    expect(response.status).toBe(400);
     expect(spy).not.toHaveBeenCalled();
   });
 
@@ -516,5 +565,192 @@ describe("PUT /api/bookings/:bookingId", () => {
 
     expect(response.status).toBe(400);
     expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /api/bookings/my-bookings", () => {
+  const rows = [
+    {
+      _id: "507f1f77bcf86cd799439021",
+      clientReference: "BL-a1b2c3",
+      status: "CONFIRMED",
+      hotel: { hotelId: "lp1a2b3c", name: "Hotel Lutetia" },
+      stay: { checkin: "2026-11-02T00:00:00.000Z", checkout: "2026-11-05T00:00:00.000Z" },
+      price: { amount: 412.5, currency: "EUR" },
+    },
+    {
+      _id: "507f1f77bcf86cd799439022",
+      clientReference: "BL-d4e5f6",
+      status: "CANCELLED",
+      hotel: { hotelId: "lp4d5e6f", name: "Hotel de Rome" },
+      stay: { checkin: "2026-12-01T00:00:00.000Z", checkout: "2026-12-03T00:00:00.000Z" },
+      price: { amount: 120, currency: "EUR" },
+    },
+  ];
+
+  const listQuery = (result) => {
+    const query = {
+      select: vi.fn(() => query),
+      sort: vi.fn(() => query),
+      skip: vi.fn(() => query),
+      limit: vi.fn(() => query),
+      lean: vi.fn().mockResolvedValue(result),
+    };
+
+    return query;
+  };
+
+  const stubList = (result = rows, total = rows.length) => {
+    const query = listQuery(result);
+
+    return {
+      query,
+      find: vi.spyOn(Booking, "find").mockReturnValue(query),
+      count: vi.spyOn(Booking, "countDocuments").mockResolvedValue(total),
+    };
+  };
+
+  const myBookings = (search = "", authToken = token) =>
+    fetch(`${base}/api/bookings/my-bookings${search}`, {
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+    });
+
+  it("returns the page of bookings with the total", async () => {
+    stubList();
+
+    const response = await myBookings();
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      success: true,
+      message: "Bookings retrieved successfully",
+      data: { bookings: rows, total: 2, page: 1, limit: 10 },
+    });
+  });
+
+  it("scopes the query to the authenticated user, never the query string", async () => {
+    const { find, count } = stubList();
+
+    await myBookings("?userId=507f1f77bcf86cd799439098&customerId=507f1f77bcf86cd799439098");
+
+    expect(find).toHaveBeenCalledWith({ userId: ownerId });
+    expect(count).toHaveBeenCalledWith({ userId: ownerId });
+  });
+
+  it("excludes the provider and payment internals from each booking", async () => {
+    const { query } = stubList();
+
+    await myBookings();
+
+    expect(query.select).toHaveBeenCalledWith("-__v -userId -payment -liteApi");
+  });
+
+  it("orders newest first", async () => {
+    const { query } = stubList();
+
+    await myBookings();
+
+    expect(query.sort).toHaveBeenCalledWith({ createdAt: -1 });
+  });
+
+  it("applies the requested page and limit", async () => {
+    const { query } = stubList();
+
+    await myBookings("?page=3&limit=5");
+
+    expect(query.skip).toHaveBeenCalledWith(10);
+    expect(query.limit).toHaveBeenCalledWith(5);
+  });
+
+  it("defaults to the first page of ten", async () => {
+    const { query } = stubList();
+
+    await myBookings();
+
+    expect(query.skip).toHaveBeenCalledWith(0);
+    expect(query.limit).toHaveBeenCalledWith(10);
+  });
+
+  it("reads the results without hydrating documents", async () => {
+    const { query } = stubList();
+
+    await myBookings();
+
+    expect(query.lean).toHaveBeenCalledTimes(1);
+  });
+
+  it("caps the page size at fifty", async () => {
+    const { find } = stubList();
+
+    const response = await myBookings("?limit=500");
+
+    expect(response.status).toBe(400);
+    expect(find).not.toHaveBeenCalled();
+  });
+
+  it.each(["?page=0", "?page=abc", "?page=1.5", "?limit=0", "?limit=1.5", "?limit=-3"])(
+    "rejects %s without querying the database",
+    async (search) => {
+      const { find } = stubList();
+
+      const response = await myBookings(search);
+
+      expect(response.status).toBe(400);
+      expect(find).not.toHaveBeenCalled();
+    }
+  );
+
+  it("returns an empty page rather than a 404 when the user has no bookings", async () => {
+    stubList([], 0);
+
+    const response = await myBookings();
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).data).toEqual({
+      bookings: [],
+      total: 0,
+      page: 1,
+      limit: 10,
+    });
+  });
+
+  it("is not swallowed by the booking id route", async () => {
+    const { find } = stubList();
+    const byId = vi.spyOn(Booking, "findById");
+
+    const response = await myBookings();
+
+    expect(response.status).toBe(200);
+    expect(find).toHaveBeenCalledTimes(1);
+    expect(byId).not.toHaveBeenCalled();
+  });
+
+  it("never reaches LiteAPI", async () => {
+    stubList();
+    const book = vi.spyOn(liteApiService, "bookRate");
+    const cancel = vi.spyOn(liteApiService, "cancelBooking");
+
+    await myBookings();
+
+    expect(book).not.toHaveBeenCalled();
+    expect(cancel).not.toHaveBeenCalled();
+  });
+
+  it("refuses a request with no token and never queries the database", async () => {
+    const find = vi.spyOn(Booking, "find");
+
+    const response = await myBookings("", null);
+
+    expect(response.status).toBe(401);
+    expect(find).not.toHaveBeenCalled();
+  });
+
+  it("refuses an invalid token and never queries the database", async () => {
+    const find = vi.spyOn(Booking, "find");
+
+    const response = await myBookings("", "not-a-token");
+
+    expect(response.status).toBe(401);
+    expect(find).not.toHaveBeenCalled();
   });
 });

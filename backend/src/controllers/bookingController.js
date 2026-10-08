@@ -4,6 +4,14 @@ const Booking = require("../models/Booking");
 const { sendSuccess } = require("../utils/apiResponse");
 const { generateClientReference } = require("../utils/generateRef");
 
+const isAdmin = (user) => user.role === "admin";
+
+// Admins may reach any booking; everyone else only their own.
+const findAccessibleBooking = (bookingId, user) =>
+  isAdmin(user)
+    ? Booking.findById(bookingId)
+    : Booking.findOne({ _id: bookingId, userId: user.userId });
+
 const bookHotel = async (req, res) => {
   const result = await liteApiService.bookRate({
     ...req.body,
@@ -25,11 +33,25 @@ const prebookHotel = async (req, res) => {
   sendSuccess(res, "Hotel prebooked successfully", result);
 };
 
+const getMyBookings = async (req, res) => {
+  const { page, limit } = req.query;
+  const filter = { userId: req.user.userId };
+
+  const [bookings, total] = await Promise.all([
+    Booking.find(filter)
+      .select("-__v -userId -payment -liteApi")
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean(),
+    Booking.countDocuments(filter),
+  ]);
+
+  sendSuccess(res, "Bookings retrieved successfully", { bookings, total, page, limit });
+};
+
 const getBookingById = async (req, res) => {
-  const booking = await Booking.findOne({
-    _id: req.params.bookingId,
-    userId: req.user.userId,
-  });
+  const booking = await findAccessibleBooking(req.params.bookingId, req.user);
 
   if (!booking) {
     throw new AppError("Booking not found", 404);
@@ -60,7 +82,7 @@ const cancelBooking = async (req, res) => {
     throw new AppError("Booking not found", 404);
   }
 
-  if (booking.userId.toString() !== req.user.userId) {
+  if (!isAdmin(req.user) && booking.userId.toString() !== req.user.userId) {
     throw new AppError("You are not authorized to cancel this booking", 403);
   }
 
@@ -79,6 +101,7 @@ const cancelBooking = async (req, res) => {
 module.exports = {
   bookHotel,
   prebookHotel,
+  getMyBookings,
   getBookingById,
   getBookingConfirmation,
   cancelBooking,
