@@ -1,19 +1,21 @@
 const express = require('express');
 const healthRoutes = require('./healthRoutes');
+const authRoutes = require('./authRoutes');
+const userRoutes = require('./userRoutes');
+const hotelRoutes = require('./hotelRoutes');
+const bookingRoutes = require('./bookingRoutes');
+const locationRoutes = require('./locationRoutes');
 
 const router = express.Router();
 
-const userRoutes = require("../routes/userRoutes"); 
-const bookingRoutes = require("./bookingRoutes");
-
-//Remaining domain routers are added here as they are implemented:
 // Mount each domain router under its API prefix.
 router.use('/health', healthRoutes);
-
-// router.use('/auth', authRoutes);
-router.use('/bookings', bookingRoutes);
-// router.use('/hotels', hotelRoutes);
-// router.use('/admin', adminRoutes);
+router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
+router.use('/hotels', hotelRoutes);
+router.use('/bookings', bookingRoutes);
+router.use('/locations', locationRoutes);
+
+// router.use('/admin', adminRoutes);
 
 module.exports = router;

@@ -3,9 +3,9 @@ const { z } = require("zod");
 const bookingIdParamsSchema = z.object({
   bookingId: z
     .string()
-    .regex(/^[a-fA-F0-9]{24}$/, "Invalid booking ID")
+    .regex(/^[0-9a-fA-F]{24}$/, "Booking ID must be a valid id"),
 });
 
- module.exports = {
-   bookingIdParamsSchema
- };
+module.exports = {
+  bookingIdParamsSchema,
+};
