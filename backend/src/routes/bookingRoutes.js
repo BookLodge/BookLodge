@@ -16,7 +16,9 @@ const { prebookSchema } = require("../schemas/prebookSchema");
 
 const router = express.Router();
 
-router.post("/prebook", validateBody(prebookSchema), prebookHotel);
+// Authenticated so the prebook becomes an attempt owned by a user, which is what lets the book
+// call use our stored prebookId/transactionId pair rather than one the client supplies.
+router.post("/prebook", protect, validateBody(prebookSchema), prebookHotel);
 
 router.post("/", protect, validateBody(bookHotelRequestSchema), bookHotel);
 

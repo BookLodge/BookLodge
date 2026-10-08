@@ -20,6 +20,7 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "vitest run --config vitest.e2e.config.js",
     "start": "node src/server.js",
     "dev": "node --watch src/server.js"
   },

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterAll, afterEach } from "vitest";
 import { createRequire } from "node:module";
 
 // Source modules are CommonJS; loading them through Node keeps one instance of each module.
@@ -8,20 +8,33 @@ const { liteApiService } = require("../../src/services/liteapi/liteApiService.js
 const { ExternalAPIError } = require("../../src/errors.js");
 const { generateToken } = require("../../src/utils/authHelper.js");
 const Booking = require("../../src/models/Booking.js");
+const BookingAttempt = require("../../src/models/BookingAttempt.js");
 
 const ownerId = "507f1f77bcf86cd799439011";
 const strangerId = "507f1f77bcf86cd799439098";
 const adminId = "507f1f77bcf86cd7994390ad";
 const bookingId = "507f1f77bcf86cd799439012";
 
+const storedReference = "BL-2f1c9a4e-7d3b-4f8a-9c1e-5a6b7c8d9e0f";
+
+// The client no longer sends payment details: the pair it books with comes from the attempt.
 const bookingBody = {
   prebookId: "pb_abc123",
   holder: { firstName: "Ada", lastName: "Lovelace", email: "ada@example.com" },
   guests: [
     { occupancyNumber: 1, firstName: "Ada", lastName: "Lovelace", email: "ada@example.com" },
   ],
-  transactionId: "txn_abc123",
 };
+
+const pendingAttempt = () => ({
+  userId: ownerId,
+  clientReference: storedReference,
+  prebookId: "pb_abc123",
+  transactionId: "txn_abc123",
+  status: "PENDING_PAYMENT",
+  bookingId: null,
+  save: vi.fn().mockResolvedValue(),
+});
 
 const bookedRate = {
   clientReference: "BL-2f1c9a4e-7d3b-4f8a-9c1e-5a6b7c8d9e0f",
@@ -45,6 +58,7 @@ let server;
 let base;
 let token;
 let adminToken;
+let attempt;
 
 beforeAll(async () => {
   server = app.listen(0);
@@ -55,6 +69,11 @@ beforeAll(async () => {
 });
 
 afterAll(() => new Promise((resolve) => server.close(resolve)));
+
+beforeEach(() => {
+  attempt = pendingAttempt();
+  vi.spyOn(BookingAttempt, "findOne").mockResolvedValue(attempt);
+});
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -119,6 +138,65 @@ describe("POST /api/bookings", () => {
 
     expect(response.status).toBe(502);
     expect(create).not.toHaveBeenCalled();
+    expect(attempt.status).toBe("PAYMENT_FAILED");
+    expect(attempt.save).toHaveBeenCalled();
+  });
+
+  it("books with the pair the server stored, not one the client sent", async () => {
+    const spy = vi.spyOn(liteApiService, "bookRate").mockResolvedValue(bookedRate);
+    vi.spyOn(Booking, "create").mockResolvedValue(savedBooking);
+
+    await book({ ...bookingBody, transactionId: "client-supplied", clientReference: "client-supplied" });
+
+    const sent = spy.mock.calls[0][0];
+    expect(sent.clientReference).toBe(storedReference);
+    expect(sent.transactionId).toBe("txn_abc123");
+  });
+
+  it("books only against a pending attempt owned by the caller", async () => {
+    const spy = vi.spyOn(liteApiService, "bookRate");
+    BookingAttempt.findOne.mockResolvedValue(null);
+
+    const response = await book(bookingBody);
+
+    expect(response.status).toBe(409);
+    expect(spy).not.toHaveBeenCalled();
+    expect(BookingAttempt.findOne).toHaveBeenCalledWith({
+      userId: ownerId,
+      prebookId: "pb_abc123",
+      status: "PENDING_PAYMENT",
+    });
+  });
+
+  it("flags an ambiguous provider outcome and keeps it for recovery", async () => {
+    vi.spyOn(liteApiService, "bookRate").mockRejectedValue(
+      new ExternalAPIError("Booking failed", 502, {
+        provider: { code: 2014, message: "booking incomplete", description: "payment or booking confirmation did not finish", httpStatus: 400 },
+        ambiguous: true,
+      })
+    );
+    const create = vi.spyOn(Booking, "create");
+
+    const response = await book(bookingBody);
+
+    expect(response.status).toBe(502);
+    expect(create).not.toHaveBeenCalled();
+    expect(attempt.status).toBe("BOOKING_AMBIGUOUS");
+    expect(await response.json()).toMatchObject({
+      success: false,
+      data: { provider: { code: 2014 }, ambiguous: true },
+    });
+  });
+
+  it("marks the attempt consumed once the booking is persisted", async () => {
+    vi.spyOn(liteApiService, "bookRate").mockResolvedValue(bookedRate);
+    vi.spyOn(Booking, "create").mockResolvedValue(savedBooking);
+
+    await book(bookingBody);
+
+    expect(attempt.status).toBe("BOOKED");
+    expect(attempt.bookingId).toBe(bookingId);
+    expect(attempt.save).toHaveBeenCalled();
   });
 
   it("reports a duplicate booking as a conflict", async () => {
