@@ -1,51 +1,63 @@
+const { liteApiService } = require("../services/liteapi/liteApiService");
+const { AppError } = require("../errors");
 const Booking = require("../models/Booking");
-const liteApiService = require("../services/liteApiService");
+const { sendSuccess } = require("../utils/apiResponse");
+const { generateClientReference } = require("../utils/generateRef");
 
-const cancelBooking = async (req, res, next) => {
-  try {
-    const { bookingId } = req.params;
-    const userId = req.user.id;
+const bookHotel = async (req, res) => {
+  const result = await liteApiService.bookRate({
+    ...req.body,
+    clientReference: generateClientReference(),
+  });
 
-    // Find the BookLodge booking
-    const booking = await Booking.findById(bookingId);
+  sendSuccess(res, "Hotel booked successfully", result, 201);
+};
 
-    if (!booking) {
-      return res.status(404).json({
-        success: false,
-        message: "Booking not found",
-      });
-    }
+const prebookHotel = async (req, res) => {
+  const result = await liteApiService.prebook(req.body);
 
-    // Verify that the booking belongs to the authenticated user
-    if (booking.user.toString() !== userId.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: "You are not authorized to cancel this booking",
-      });
-    }
+  sendSuccess(res, "Hotel prebooked successfully", result);
+};
 
-    // Check whether the booking can be cancelled
-    if (booking.status !== "CONFIRMED") {
-      return res.status(400).json({
-        success: false,
-        message: "This booking cannot be cancelled",
-      });
-    }
+const getBookingById = async (req, res) => {
+  const booking = await Booking.findOne({
+    _id: req.params.bookingId,
+    userId: req.user.userId,
+  });
 
-    // Cancel the booking through LiteAPI
-    const result = await liteApiService.cancelBooking(bookingId);
-
-    // Update BookLodge booking after successful cancellation
-    booking.status = "CANCELLED";
-    await booking.save();
-
-    // Return the response provided by the LiteAPI adapter
-    return res.status(200).json(result);
-  } catch (error) {
-    next(error);
+  if (!booking) {
+    throw new AppError("Booking not found", 404);
   }
+
+  sendSuccess(res, "Booking retrieved successfully", booking);
+};
+
+const cancelBooking = async (req, res) => {
+  const booking = await Booking.findById(req.params.bookingId);
+
+  if (!booking) {
+    throw new AppError("Booking not found", 404);
+  }
+
+  if (booking.userId.toString() !== req.user.userId) {
+    throw new AppError("You are not authorized to cancel this booking", 403);
+  }
+
+  if (booking.status !== "CONFIRMED") {
+    throw new AppError("This booking cannot be cancelled", 400);
+  }
+
+  const result = await liteApiService.cancelBooking(booking.liteApi.bookingId);
+
+  booking.status = "CANCELLED";
+  await booking.save();
+
+  sendSuccess(res, "Booking cancelled successfully", result);
 };
 
 module.exports = {
+  bookHotel,
+  prebookHotel,
+  getBookingById,
   cancelBooking,
 };
