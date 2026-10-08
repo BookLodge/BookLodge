@@ -1,279 +1,375 @@
-# Hotel Management App - Architecture
-## TS Academy Capstone Group Project
+# BookLodge — Backend
 
-#### *LiteAPI for Hotel Inventory, Booking, and Payment*
+REST API for BookLodge, a hotel booking platform. Accounts, search, booking and cancellation are
+served here. Hotel inventory, rates and payment come from [LiteAPI](https://docs.liteapi.travel).
 
-### 1. Scope Statement — Read This First... IMPORTANT
+**LiteAPI provides** hotel data, room rates and pricing, availability re-checked at prebook, the
+customer payment flow, and the reservation itself.
 
-#### What's Real
-• Hotel data (names, photos, addresses, amenities) — from LiteAPI
-• Room rates and pricing — from LiteAPI for the requested dates
-• Location search/autocomplete — from LiteAPI's static Places data
-• Rate availability and final pricing — verified through LiteAPI Prebook
-• Payment — handled through LiteAPI's User Payment / Payment SDK flow • The actual reservation — completed through LiteAPI Book
+**BookLodge owns** user accounts and authentication, the customer-facing booking flow,
+application-level validation and authorization, local booking records, and the orchestration
+between the frontend and the provider. A local `Booking` links to the provider's reservation by id;
+it is not itself the hotel reservation.
 
-#### Our Application Owns
-• User accounts and authentication
-• The customer-facing booking experience
-• Application-level validation and authorization
-• Our local booking records and booking history
-• The integration/orchestration between the frontend and LiteAPI
+## Stack
 
-LiteAPI is the external hotel inventory, reservation, and payment provider. Our local Booking record tracks the customer's booking attempt and the provider's reservation identifiers; it does not itself constitute the hotel reservation.
-For sandbox development, LiteAPI provides test payment/booking flows, so the team does not need to integrate Paystack or charge real customer money.
+Express 5 (CommonJS) · Mongoose 9 / MongoDB · Zod 4 for validation · JWT (jsonwebtoken) · bcrypt ·
+axios · express-rate-limit · Vitest 5.
 
-### 2. Roles
+Node 22.12 or newer — that is Vitest's floor; the runtime itself needs 20.19.
 
-#### Guest (not logged in)
-• search hotels, view hotel/room details
-• can complete a booking + payment WITHOUT registering (booking tied to the email they provide at checkout)
+## Getting started
 
-#### Customer (registered, role: "customer")
-• everything a guest can do
-• bookings automatically tied to their account
-• view own booking history (paginated)
-• cancel own upcoming booking, subject to LiteAPI cancellation policies
-
-#### Admin (role: "admin")
-• log in (same login endpoint, different role in the JWT)
-• view ALL bookings across the platform (paginated, filterable by status)
-• view a single booking's full detail, including payment and provider status
-• initiate cancellation through LiteAPI where permitted by the booking policy
-• view all registered users
-• deactivate a user (isActive: false — blocks login, same pattern as HER Bank's frozen account)
-
-
-###  3. Entities / Models
-
-#### User
- 
-| Field | Type/Notes | 
-| -------- | -------- |
-| _id |  | 
-| firstName |  | 
-| lastName |  | 
-| email |  | 
-| password | hashed | 
-| phone |  | 
-| role | enum ["customer", "admin"] | 
-| isActive |  | 
-| timestamps |  | 
-
-
-#### Booking
-| Field | Type/Notes | 
-| -------- | -------- |
-| _id |  | 
-| customerId | ref: User, null if guest booking | 
-| guestEmail |  | 
-| guestFirstName |  | 
-| guestLastName |  | 
-| liteApiHotelId |  | 
-| hotelName |  | 
-| hotelAddress |  | 
-| hotelImage |  | 
-| roomType |  | 
-| boardType |  | 
-| checkInDate |  | 
-| checkOutDate |  | 
-| numberOfGuests |  | 
-| pricePerNight |  | 
-| totalPrice |  | 
-| currency |  | 
-| reference |  | 
-| status | enum ["PENDING_PAYMENT", "PENDING_BOOKING", "CONFIRMED", "CANCELLED", "FAILED"] | 
-| cancelledReason | String, optional | 
-| liteApiPrebookId |  | 
-| liteApiTransactionId |  | 
-| liteApiBookingId | optional until confirmed | 
-| hotelConfirmationCode | optional until confirmed | 
-| paymentStatus | enum ["PENDING", "SUCCESS", "FAILED"] | 
-| timestamps |  | 
-
-
-
-
-
-optional until confirmed
-enum ["PENDING", "SUCCESS", "FAILED"]
-Type / Notes
-     guestFirstName
-       liteApiHotelId
-       hotelAddress
-       roomType
-       checkInDate
-       numberOfGuests
-       totalPrice
-       reference
-    status
-   enum ["PENDING_PAYMENT", "PENDING_BOOKING", "CONFIRMED", "CANCELLED", "FAILED"]
-   cancelledReason String, optional
-       liteApiTransactionId
-       hotelConfirmationCode optional until confirmed
-       timestamps
-   
-
-### 4. Standard API Response Format — Apply This Everywhere
-
-The capstone spec requires one consistent response shape across the whole app. Every controller, every endpoint, no exceptions:
-
-#### SUCCESS
-```js
-{
-    "success": true,
-    "message": "Booking created successfully",
-    "data": { "bookingId": "...", "reference": "HB-20261001-A1B2", "totalPrice": 145000 }
-}
+```bash
+cd backend
+npm install
+cp .env.example .env      # then fill it in
+npm run dev               # or: npm start
 ```
 
-#### ERROR
-```js
-{
-    "success": false,
-    "message": "Invalid check-in date",
-    "data": null
-}
+The server connects to MongoDB *first* and only then starts listening. If the database is
+unreachable it exits with code 1 rather than serving requests that would all fail. Shutdown on
+`SIGINT`/`SIGTERM` stops accepting connections, lets in-flight requests finish, closes the
+database, and force-exits if that takes more than 10 seconds.
+
+### Configuration
+
+`src/config/env.js` validates every variable at boot and exits with a list of what is wrong. It is
+the only module that reads `process.env`.
+
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `NODE_ENV` | no | `development` \| `test` \| `production`, default `development` |
+| `PORT` | no | defaults to `5000`; must be within 1024–65535 |
+| `MONGO_URI` | **yes** | MongoDB connection string |
+| `FRONTEND_URL` | no | defaults to `http://localhost:3000`; the only origin CORS accepts |
+| `JWT_SECRET` | **yes** | at least 32 characters |
+| `JWT_EXPIRES_IN` | **yes** | e.g. `1h`, `7d` |
+| `LITEAPI_BASE_URL` | **yes** | e.g. `https://api.liteapi.travel/v3.0` |
+| `LITEAPI_KEY` | **yes** | sent to LiteAPI as the `X-API-Key` header |
+
+Which file is loaded depends on `NODE_ENV`: `test` loads `.env.test`, anything else loads `.env`.
+When the chosen file does not exist — CI, containers, hosting platforms — the values must already
+be in `process.env`; a missing `.env` is treated as production.
+
+Neither file is committed. `.env.test` holds live sandbox credentials and needs the same variables
+as `.env`.
+
+## How a booking works
+
+The flow is deliberately split into two calls with the customer's payment in between.
+
+1. **Search.** `GET /api/locations/search?query=Paris` gives `placeId`s.
+   `POST /api/hotels/search` takes one and returns hotels, each with its cheapest rate.
+2. **Rates.** `POST /api/hotels/:hotelId/details` returns the hotel and every rate for the dates.
+   Each rate carries an `offerId`, the only handle LiteAPI accepts for the next step.
+3. **Prebook.** `POST /api/bookings/prebook` with `{ offerId }`, authenticated. LiteAPI re-checks
+   availability and re-prices the room and returns `prebookId`, `transactionId` and `secretKey`.
+   BookLodge records a **BookingAttempt** holding that `prebookId`/`transactionId` pair together
+   with a `clientReference` minted here, and returns the whole payload — `secretKey` included — to
+   the caller.
+4. **Payment.** The frontend opens LiteAPI's Payment SDK with `secretKey` and the customer pays.
+   BookLodge is not involved and needs no Stripe account of its own. `secretKey` is a live payment
+   credential: it goes to the client that is paying, and is never persisted, logged or placed in a
+   URL.
+5. **Book.** `POST /api/bookings` with `{ prebookId, holder, guests }`. The controller looks up the
+   caller's pending attempt for that `prebookId` and books with the **stored**
+   `prebookId`/`transactionId`/`clientReference`, sending `payment.method: "TRANSACTION_ID"`. On
+   success the attempt is marked `BOOKED` and a `Booking` is written.
+6. **Confirm, view, cancel.** `GET /api/bookings/:bookingId/confirmation` reports the status;
+   `PUT /api/bookings/:bookingId` cancels through LiteAPI.
+
+### The server decides whether to book, not the client
+
+It is tempting to have the frontend send `paymentSuccessful: true` once the SDK returns and book on
+the strength of that. We do not, because a flag set by the client is not evidence of anything.
+
+LiteAPI offers no way to check a payment *before* booking. There is no `payment.*` webhook, and
+`payment_status` and `payment_transaction_id` exist only on booking records, which `/rates/book`
+is what creates. **The book call is therefore the payment gate.** Booking with the
+`prebookId`/`transactionId` pair only succeeds once the PaymentIntent behind that pair has actually
+been confirmed, so the provider — not the frontend — is what establishes that payment happened. A
+caller who never paid gets a provider error and no reservation.
+
+Because the pair is read from the stored attempt and never from the request body, client-supplied
+payment data cannot reach `/rates/book` at all: `POST /api/bookings` accepts no `transactionId`.
+
+### Idempotency
+
+`clientReference` (`BL-<uuid>`) is minted once, when the prebook is recorded, and reused by every
+booking attempt made against it. A client retrying a timed-out `POST /api/bookings` therefore sends
+the same reference, which is what allows LiteAPI to recognise the duplicate instead of creating a
+second reservation. Once an attempt is `BOOKED`, a retry finds no pending attempt and gets a `409`,
+so the duplicate is stopped here as well.
+
+## Request lifecycle
+
+```
+route → validate → controller → liteApiService → liteApiClient → LiteAPI
 ```
 
-**Rule for the team:** build one tiny helper and use it in every controller instead of hand-writing `res.json({...})` each time, so nobody drifts from the shape:
+Validation replaces `req.body`, `req.query` and `req.params` with the parsed result, so a missing or
+wrongly-typed field fails with `400` before any controller runs, and unknown keys are dropped rather
+than forwarded.
 
-```js
-    utils/apiResponse.js
-        sendSuccess(res, statusCode, message, data)
-        sendError(res, statusCode, message)
+`src/services/liteapi/` is the only place that knows LiteAPI exists. Endpoints, payload shapes,
+credentials, response formats and error codes all stay behind it; nothing above it imports axios or
+reads a `LITEAPI_*` variable.
+
+Every provider response is validated against a Zod schema in `services/liteapi/schemas/` before it is
+trusted, then mapped into a BookLodge shape by `services/liteapi/mappers/`. A payload we cannot make
+sense of becomes a `502` rather than something half-parsed reaching a controller.
+
+## Layout
 
 ```
-
-This also directly satisfies the spec's error-handling requirement — your centralized `errorHandler.js` should output through the same `sendError` shape, so a crash never leaks `AxiosError` , a raw stack trace, or `undefined` to the frontend. The frontend only ever needs to check `response.success` and read `response.message` for the user-facing text — one pattern, every screen.
-
-
-### 5. Authorized LiteAPI Service Integrations
-**• Permitted Endpoints & Operations:** Static Places/Cities data, Hotel List, Hotel Details, room rate retrieval, Prebook verification, Book execution, Booking retrieval, and Booking cancellation.
-**• Payment Processing:** Integration with the LiteAPI User Payment / Payment SDK within the sandbox environment for development purposes.
-**• Prohibited Integrations:** Voucher and loyalty-related endpoints are excluded from the current implementation scope unless additional requirements are formally introduced.
-
-
-### 6. Complete Customer Journey
-#### Step 1 — Search
-`GET /api/hotels/search?`
-`city=Lagos&checkIn=2026-10-01&checkOut=2026-10-05&guests=2&page=1&limit=10`
-Calls LiteAPI Hotel List + rates, returns a clean paginated list
-
-#### Step 2 — View Hotel
-`GET /api/hotels/:liteApiHotelId?checkIn=...&checkOut=...&guests=...`
-
-#### Step 3 — Select Room / Rate
-Frontend keeps the selected LiteAPI offerId and required guest details.
-
-#### Step 4 — Prebook / Create Checkout Session
- `POST /api/bookings/prebook`
-Backend sends the selected offerId to LiteAPI Prebook. LiteAPI verifies availability and final pricing and returns a prebookId and transactionId (plus the payment SDK secret when User Payment is enabled). The backend creates a local booking record with PENDING_PAYMENT.
-
-#### Step 5 — Customer Pays
-Frontend opens LiteAPI's Payment SDK using the prebook response. Customer completes payment using the sandbox test payment flow. No Paystack integration is required.
-
-#### Step 6 — Finalize Booking
- `POST /api/bookings/:id/confirm`
-Backend sends the prebookId, LiteAPI transactionId, holder and guest details to LiteAPI Book. On success, store the LiteAPI booking ID and hotel confirmation code and mark the local Booking CONFIRMED.
-
-#### Step 7 — Confirmation
-Return the confirmed reservation to the customer and send a confirmation email. The local booking record and LiteAPI booking remain linked by provider IDs.
-
-#### Step 8 — View / Cancel
-• `GET /api/bookings/my-bookings?page=1&limit=10` — logged in, own only 
-• `GET /api/bookings/lookup?reference=&email=` — guest
-• `PATCH /api/bookings/:id/cancel` — owner or admin; calls LiteAPI
-
-
-LiteAPI documents the recommended hotel flow as Search → Rate Results → Hotel/Room Selection → Prebook → Payment → Book → Confirmation. Prebook verifies availability and final pricing, while Book creates the confirmed reservation. The User Payment SDK can handle the customer payment flow in the sandbox.
-
-
-### 7. Folder Structure
-```text
 backend/
 ├── src/
-│   ├── config/
-│   │   └── db.js
-│   │
-│   ├── models/
-│   │   ├── User.js
-│   │   └── Booking.js
-│   │
-│   ├── schemas/
-│   │   ├── authSchema.js
-│   │   └── bookingSchema.js
-│   │
-│   ├── controllers/
-│   │   ├── authController.js
-│   │   ├── hotelSearchController.js
-│   │   ├── bookingController.js
-│   │   └── adminController.js
-│   │
-│   ├── routes/
-│   │   ├── authRoutes.js
-│   │   ├── hotelRoutes.js
-│   │   ├── bookingRoutes.js
-│   │   └── adminRoutes.js
-│   │
-│   ├── middleware/
-│   │   ├── auth.js
-│   │   ├── softAuth.js
-│   │   ├── adminOnly.js
-│   │   ├── rateLimiter.js
-│   │   └── errorHandler.js
-│   │
+│   ├── config/       env validation, the single MongoDB connection
+│   ├── routes/       one router per domain, mounted under /api
+│   ├── schemas/      request validation
+│   ├── controllers/  HTTP handling only
+│   ├── models/       User, Booking, BookingAttempt
+│   ├── middleware/   auth, roles, rate limiting, validation, error handling
 │   ├── services/
-│   │   ├── liteApiService.js
+│   │   ├── liteapi/  the adapter: client, service, mappers, schemas,
+│   │   │             errors.js, retryPolicy.js
 │   │   └── emailService.js
-│   │
-│   ├── utils/
-│   │   ├── generateRef.js
-│   │   └── apiResponse.js
-│   │
-│   ├── app.js
-│   └── server.js
-│
+│   ├── utils/        response helper, JWT helpers, reference generator
+│   ├── app.js        express app, CORS, route mounting
+│   └── server.js     startup, shutdown, process-level error handling
 ├── tests/
-│   ├── auth.test.js
-│   └── booking.test.js
-│
-├── .env
-├── .env.example
-├── .gitignore
-└── package.json
+│   ├── unit/         mappers, policy, adapter, auth, validation
+│   ├── integration/  the app booted and called over HTTP
+│   └── e2e/          live provider and database, opt-in booking
+├── vitest.config.js
+└── vitest.e2e.config.js
 ```
 
-### 8. API Documentation Table
-Format required by the capstone spec
+## API reference
 
-| EndPoint | Method | Purpose | Auth | Request Body | Success Response | Error Response |
-| -------- | ------ | ------- | ---- | ------------ | ---------------- | -------------- |
-| `/api/auth/register` | POST | Create account | None | `{firstName, lastName, email, password, confirmPassword,phone}` | `201 {success: true, data: :{userId}}` | `404 {success: false, message: "Email already exists"}` |
-| `/api/auth/login` | POST | Authenticate | None | `{email,password}` | `200 {success: true, data: :{token,user}}` | `404 {success: false, message: "Invalid email or password"}` |
-| `/api/hotels/places` | GET | Location autocomplete | None | Query: query | `200 {success: true, data: {...}}` | `404 {success: false, message: "Query too short"}` |
-| `/api/hotels/search` | GET | Search hotels | None | Query: city, checkIn, checkOut, guests, page,limit | `200 {success: true, data: :{hotels,total,page}}` | `502 {success: false, message: "Unable to reach hotel provider"}` |
-| `/api/hotels/:id` | GET | Hotel detail + rooms | None | Query: checkIn,checkOut,guests | `200 {success: true, data: :{hotel,rooms}}` | `404 {success: false, message: "Hotel not found"}` |
-| `/api/bookings/prebook` | POST | Verify selected LiteAPI rate and create local booking attempt | Soft | `{offerId,guestDetails,...}` | `200 {success: true, data: :{bookingId, prebookId, transactionId, paymentSecretKey}}` | `400/502 {success: false, message: "Unable to prebook selected rate"}` |
-| `/api/bookings/:id/confirm` | POST | Finalize reservation through LiteAPI Book | Soft | `{holder,guests}` | `200 {success: true, data: :{booking}}` | `400/502 {success: false, message: "Unable to confirm hotel booking"}` |
-| `/api/bookings/my-bookings` | GET | Own booking history | Required | Query: page,limit | `200 {success: true, data: :{bookings,total}}` | `401 {success: false, message: "Not authenticated"}` |
-| `/api/bookings/lookup` | GET | Guest booking lookup | None | Query: reference,email | `200 {success: true, data: :{booking}}` | `404 {success: false, message: "Booking not found"}` |
-| `/api/bookings/:id/cancel` | PATCH | Cancel a confirmed booking through LiteAPI | Soft/Admin | `{reason?}` | `200 {success: true, data: :{booking}}` | `403/502 {success: false, message: "Unable to cancel booking"}` |
-| `/api/admin/bookings` | GET | All bookings | Admin | Query: page,limit,status | `200 {success: true, data: :{bookings,total}}` | `403 {success: false, message: "Admins only"}` |
-| `/api/admin/users` | GET | All users | Admin | Query: page,limit | `200 {success: true, data: :{users, total}}` | `403 {success: false, message: "Admins only"}` |
-| `/api/admin/users/:id/deactivate` | PATCH | Deactivate a user | Admin | -- | `200 {success: true, data: :{user}}` | `404 {success: false, message: "User not found"}` |
+Base URL `/api`. Every response uses the shape in the next section.
 
-We will expand this table as we build — this exact table, kept current, satisfies the capstone's API documentation requirement after I read through it.
+| Endpoint | Method | Auth | Request | Success |
+| --- | --- | --- | --- | --- |
+| `/health` | GET | — | — | 200 `{ message: "OK" }` |
+| `/auth/register` | POST | — | `{ firstName, lastName, email, password, phone }` | 201 `{ user }` |
+| `/auth/login` | POST | — | `{ email, password }` | 200 `{ token, user }` |
+| `/users/me` | GET | Bearer | — | 200 `{ user }` |
+| `/users/:id` | GET | Bearer, admin | — | 200 `{ user }` |
+| `/locations/search` | GET | — | `?query=` | 200 `{ locations }` |
+| `/hotels/search` | POST | — | stay criteria + `placeId` | 200 `{ hotels }` |
+| `/hotels/:hotelId/details` | POST | — | stay criteria | 200 `{ hotel, rates }` |
+| `/bookings/prebook` | POST | Bearer | `{ offerId }` | 200 `{ prebook, … }` |
+| `/bookings` | POST | Bearer | `{ prebookId, holder, guests }` | 201 `{ booking }` |
+| `/bookings/my-bookings` | GET | Bearer | `?page=&limit=` | 200 `{ bookings, total, page, limit }` |
+| `/bookings/:bookingId` | GET | Bearer | — | 200 `{ booking }` |
+| `/bookings/:bookingId/confirmation` | GET | Bearer | — | 200 `{ status }` |
+| `/bookings/:bookingId` | PUT | Bearer | — | 200 `{ bookingId, status, cancellationFee, refundAmount, currency }` |
 
+"Stay criteria" is the same object everywhere and is validated as a unit:
 
-### 9. Security Rules
-**1. customerId on Booking —** from req.user.userId when logged in, never from body. *IMPORTANT: never get customerId from req.body — this leads to IDOR because you are trusting user input.
+```json
+{
+  "checkin": "2026-11-01",
+  "checkout": "2026-11-03",
+  "occupancies": [{ "adults": 2, "children": [] }],
+  "currency": "USD",
+  "guestNationality": "US"
+}
+```
 
-**2. Guest ownership —** reference + email together, never reference alone: this prevents IDOR.
+`checkin` and `checkout` are ISO dates (`YYYY-MM-DD`); `children` holds ages. `placeId` comes from
+`/locations/search` and is required by search but not by details.
 
-**3. totalPrice always recalculated server-side:** if the server trusts whatever totalPrice the frontend sends, a user can open dev tools or Postman and submit totalPrice: 1 for a ₦145,000 room.
+**Details** returns the hotel plus every rate for the dates. Each rate is the input to prebook:
 
-4. LiteAPI payment and booking responses are validated before changing local booking state.
+```json
+{
+  "id": "lp1899",
+  "name": "…",
+  "description": "…",
+  "photo": "…",
+  "address": "…",
+  "city": "…",
+  "country": "…",
+  "rating": 4,
+  "location": { "latitude": 48.85, "longitude": 2.35 },
+  "facilities": ["…"],
+  "checkin": "15:00",
+  "checkout": "11:00",
+  "rates": [
+    {
+      "offerId": "…",
+      "amount": 402.29,
+      "currency": "EUR",
+      "occupancyNumber": 1,
+      "roomName": "…",
+      "boardName": "…",
+      "refundable": true
+    }
+  ]
+}
+```
 
-5. Booking only becomes CONFIRMED after LiteAPI returns a successful Book response, never optimistically.
+**Search** returns each hotel with only its cheapest rate, under `startingRate`. LiteAPI returns
+rates cheapest-first and the list is passed through as it comes — there is no pagination.
 
-6. Store LiteAPI prebookId and transactionId together; they are required to finalize the same.
+**Prebook** returns the provider payload plus the reference we minted:
+
+```json
+{
+  "prebookId": "…",
+  "offerId": "…",
+  "hotelId": "lp1899",
+  "price": { "amount": 402.29, "currency": "EUR" },
+  "transactionId": "…",
+  "secretKey": "…",
+  "clientReference": "BL-…"
+}
+```
+
+**Book** takes `holder` (`{ firstName, lastName, email }`) and `guests`
+(`[{ occupancyNumber, firstName, lastName, email }]`), and responds with the stored booking:
+`{ clientReference, status, hotel, stay, rooms, holder, price, liteApi }`.
+
+Cancellation asks LiteAPI, then marks the local booking `CANCELLED`. The booking must currently be
+`CONFIRMED` and the caller must own it or be an admin.
+
+The JWT payload is `{ userId, role }`. Register returns the user document (`data.user._id`); login
+returns a trimmed object (`data.user.id`). The two spellings differ — worth knowing before writing
+frontend code against both.
+
+## Response and error contract
+
+Every response is written by `utils/apiResponse.js`, so the shape cannot drift per endpoint:
+
+```json
+{ "success": true, "message": "Hotels retrieved successfully", "data": { } }
+{ "success": false, "message": "No pending prebook for this booking", "data": null }
+```
+
+`src/errors.js` holds two classes and the distinction between them is the point:
+
+- **`AppError`** — a fault of ours: bad request, not found, forbidden. Operational, so its message
+  reaches the client.
+- **`ExternalAPIError`** — the provider failed. Extends `AppError` and adds `provider`
+  (`{ code, message, description, httpStatus }`, or `null` when no response ever arrived) and
+  `ambiguous`.
+
+Provider failures therefore carry detail a client can act on, and nothing else is ever echoed back:
+
+```json
+{
+  "success": false,
+  "message": "Booking failed",
+  "data": {
+    "provider": { "code": 2014, "description": "booking incomplete" },
+    "ambiguous": true
+  }
+}
+```
+
+`middleware/errorHandler.js` is the single place a status code is chosen: a `ZodError` becomes a
+`400`, a duplicate key `409`, a `CastError` `400`, our own errors keep their status, and anything
+unrecognised becomes a `500` `"Internal server error"` with the real error logged and never
+returned.
+
+We match on LiteAPI's `error.code` and never on the HTTP status — their codes are not statuses, and
+a provider code of `404` has nothing to do with an HTTP 404. `description` is the field LiteAPI
+recommends showing a user, so it is surfaced; their generic `message` stays in our logs. Only a real
+HTTP 404 stays a 404; every other provider failure becomes a `502`.
+
+`ambiguous: true` means the provider may have completed the work before the failure surfaced.
+Retrying is then unsafe and the outcome needs investigating, so `POST /api/bookings` records the
+attempt as `BOOKING_AMBIGUOUS` rather than failed.
+
+## Provider resilience
+
+`services/liteapi/retryPolicy.js` decides retries per operation and per provider code, never from the
+HTTP status, and denies by default. Operations are grouped by what a retry would cost:
+
+| Class | Operations | Retry a lost request (no response at all)? |
+| --- | --- | --- |
+| `READ` | hotel search, hotel details, location search | yes — asking again changes nothing |
+| `EXPIRING_WRITE` | prebook | no — each attempt reserves another hold |
+| `STATE_CHANGING` | book, cancel | no — the provider may have acted; a retry risks a duplicate booking or a double charge |
+
+| Provider code | Meaning | Retried? |
+| --- | --- | --- |
+| 4290 | request limit exceeded | yes, honouring `Retry-After` |
+| 4291 | rate-limit subsystem error | yes |
+| 4000 / 4002 / 4003 | bad request, missing or invalid field | no — our request is wrong |
+| 4005 | duplicate `clientReference` | no — recover instead |
+| 2013 / 2014 / 5000 | booking failed / incomplete / unable to process | no — ambiguous on a write |
+| 2001 | no availability, or the price moved | no — search again |
+| anything else | | no |
+
+A request refused at the rate-limit edge was never processed, which is why 4290 and 4291 are the one
+write-side failure that is safe to retry. Three attempts in total, with a deterministic backoff of
+250 ms and then 750 ms. Only register and login carry a rate limiter of our own; the booking routes
+leave that to LiteAPI, which is what the 4290 and 4291 handling is for.
+
+Only a missing `err.response` counts as a lost request: axios rejects on any non-2xx, so a `4002`
+carrying a provider body is a provider answer, not a request that went missing.
+
+## Data models
+
+| Model | One row per | Purpose |
+| --- | --- | --- |
+| `User` | account | credentials, role, `isActive` |
+| `Booking` | successful reservation | the record shown in booking history |
+| `BookingAttempt` | prebook | the server-owned `prebookId`/`transactionId` pair and idempotency key |
+
+**Booking** — `userId`, `clientReference` (unique), `status`
+(`PENDING_PAYMENT` \| `BOOKING_PROCESSING` \| `CONFIRMED` \| `PAYMENT_FAILED` \| `BOOKING_FAILED` \|
+`CANCELLED`), `hotel { hotelId, name }`, `stay { checkin, checkout }`,
+`rooms [{ occupancyNumber, roomName, boardName }]`, `holder { firstName, lastName, email }`,
+`price { amount, currency }`, `payment { transactionId }`, `liteApi { bookingId }`.
+
+**BookingAttempt** — `userId`, `clientReference` (unique), `prebookId`, `transactionId`,
+`offer { hotelId, price }`, `status` (`PENDING_PAYMENT` \| `BOOKED` \| `PAYMENT_FAILED` \|
+`BOOKING_AMBIGUOUS`), `bookingId`, `expiresAt`.
+
+It is a separate collection so an attempt that was never paid for cannot turn up in a booking list.
+A TTL index deletes each attempt at `expiresAt`, 48 hours after the prebook, ahead of the one to two
+business days LiteAPI takes to release an unused hold. `secretKey` is deliberately not a field.
+
+## Tests
+
+```bash
+npm test           # unit + integration
+npm run test:e2e   # live LiteAPI sandbox + test database
+```
+
+`npm test` runs 19 files / 297 tests. Unit tests cover the adapter, mappers, retry policy, auth and
+validation; integration tests boot the app and call it over HTTP with the provider mocked at the
+`liteApiService` boundary, so no network is involved. `.env.test` must exist, because environment
+validation runs at import — but no database is touched.
+
+`npm run test:e2e` exercises the real flow against the LiteAPI sandbox and the test database:
+register, search, walk hotels until a rate prebooks, then book, confirm and cancel, cleaning up its
+own documents afterwards. Two things to know before running it:
+
+- The booking steps are skipped unless `E2E_BOOKING=1`, because completing the payment is a browser
+  step that a server-only run cannot perform.
+- Registration is rate-limited to 5 per hour per IP, so repeated runs within the hour fail at the
+  auth step.
+
+Test files load source modules through `createRequire`. The source is CommonJS and the tests are
+ESM, and going through Node keeps one instance of each module, which is what makes `instanceof`
+checks hold across that boundary.
+
+## Not built yet
+
+So that nothing above is mistaken for a promise — these are the gaps as the code stands:
+
+- **Booking without an account.** Prebook and book both require a token, so there is no guest
+  checkout and no reference-based lookup.
+- **Enforcing `User.isActive`.** The field exists, but nothing checks it — deactivation would not
+  currently stop a login or invalidate a token.
+- **Confirmation email.** `services/emailService.js` exists and nothing calls it.
+- **Webhooks.** Status changes are learned from our own calls; LiteAPI pushes nothing to us.
+- **Search pagination.** The provider returns rates cheapest-first and the list is passed through.
+- **Duplicate recovery for code 4005.** A duplicate reference is reported, not resolved back into the
+  existing booking.
