@@ -280,6 +280,108 @@ describe("GET /api/bookings/:bookingId", () => {
   });
 });
 
+describe("GET /api/bookings/:bookingId/confirmation", () => {
+  const storedBooking = (overrides = {}) => ({
+    _id: bookingId,
+    userId: ownerId,
+    clientReference: "BL-2f1c9d",
+    status: "CONFIRMED",
+    hotel: { hotelId: "lp1a2b3c", name: "Hotel Lutetia" },
+    stay: { checkin: "2026-11-02T00:00:00.000Z", checkout: "2026-11-05T00:00:00.000Z" },
+    holder: { firstName: "Ada", lastName: "Lovelace", email: "ada@example.com" },
+    price: { amount: 412.5, currency: "EUR" },
+    payment: { transactionId: "txn_abc123" },
+    liteApi: { bookingId: "b_7f3d9c2a" },
+    ...overrides,
+  });
+
+  const confirm = (id = bookingId, authToken = token) =>
+    fetch(`${base}/api/bookings/${id}/confirmation`, {
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+    });
+
+  it("returns 200 with only the booking status", async () => {
+    vi.spyOn(Booking, "findOne").mockResolvedValue(storedBooking());
+
+    const response = await confirm();
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      success: true,
+      message: "Booking confirmation retrieved successfully",
+      data: { status: "CONFIRMED" },
+    });
+  });
+
+  it("returns whatever status the booking is currently in", async () => {
+    vi.spyOn(Booking, "findOne").mockResolvedValue(
+      storedBooking({ status: "BOOKING_PROCESSING" })
+    );
+
+    const response = await confirm();
+
+    expect((await response.json()).data).toEqual({ status: "BOOKING_PROCESSING" });
+  });
+
+  it("scopes the lookup to the authenticated user", async () => {
+    const spy = vi.spyOn(Booking, "findOne").mockResolvedValue(storedBooking());
+
+    await confirm();
+
+    expect(spy).toHaveBeenCalledWith({ _id: bookingId, userId: ownerId });
+  });
+
+  it("reports a booking the user does not own as not found", async () => {
+    vi.spyOn(Booking, "findOne").mockResolvedValue(null);
+
+    const response = await confirm();
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toMatchObject({
+      success: false,
+      message: "Booking not found",
+    });
+  });
+
+  it("never reaches LiteAPI", async () => {
+    vi.spyOn(Booking, "findOne").mockResolvedValue(storedBooking());
+    const book = vi.spyOn(liteApiService, "bookRate");
+    const cancel = vi.spyOn(liteApiService, "cancelBooking");
+
+    await confirm();
+
+    expect(book).not.toHaveBeenCalled();
+    expect(cancel).not.toHaveBeenCalled();
+  });
+
+  it("refuses a request with no token and never queries the database", async () => {
+    const spy = vi.spyOn(Booking, "findOne");
+
+    const response = await confirm(bookingId, null);
+
+    expect(response.status).toBe(401);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("refuses an invalid token and never queries the database", async () => {
+    const spy = vi.spyOn(Booking, "findOne");
+
+    const response = await confirm(bookingId, "not-a-token");
+
+    expect(response.status).toBe(401);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("rejects a malformed booking id without querying the database", async () => {
+    const spy = vi.spyOn(Booking, "findOne");
+
+    const response = await confirm("not-an-object-id");
+
+    expect(response.status).toBe(400);
+    expect(spy).not.toHaveBeenCalled();
+  });
+});
+
 describe("PUT /api/bookings/:bookingId", () => {
   const ownerId = "507f1f77bcf86cd799439011";
   const providerBookingId = "hSq2gVDrf";

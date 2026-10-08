@@ -38,6 +38,21 @@ const getBookingById = async (req, res) => {
   sendSuccess(res, "Booking retrieved successfully", booking);
 };
 
+const getBookingConfirmation = async (req, res) => {
+  const booking = await Booking.findOne({
+    _id: req.params.bookingId,
+    userId: req.user.userId,
+  });
+
+  if (!booking) {
+    throw new AppError("Booking not found", 404);
+  }
+
+  sendSuccess(res, "Booking confirmation retrieved successfully", {
+    status: booking.status,
+  });
+};
+
 const cancelBooking = async (req, res) => {
   const booking = await Booking.findById(req.params.bookingId);
 
@@ -65,5 +80,6 @@ module.exports = {
   bookHotel,
   prebookHotel,
   getBookingById,
+  getBookingConfirmation,
   cancelBooking,
 };

@@ -4,6 +4,7 @@ const {
   bookHotel,
   prebookHotel,
   getBookingById,
+  getBookingConfirmation,
   cancelBooking,
 } = require("../controllers/bookingController");
 const { protect } = require("../middleware/auth");
@@ -19,6 +20,13 @@ router.post("/prebook", validateBody(prebookSchema), prebookHotel);
 router.post("/", protect, validateBody(bookHotelRequestSchema), bookHotel);
 
 router.get("/:bookingId", protect, validateParams(bookingIdParamsSchema), getBookingById);
+
+router.get(
+  "/:bookingId/confirmation",
+  protect,
+  validateParams(bookingIdParamsSchema),
+  getBookingConfirmation
+);
 
 router.put("/:bookingId", protect, validateParams(bookingIdParamsSchema), cancelBooking);
 
