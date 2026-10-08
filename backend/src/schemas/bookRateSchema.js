@@ -19,7 +19,11 @@ const bookRateRequestSchema = z.object({
   transactionId: z.string(),
 });
 
-// clientReference is minted server-side, so the client-facing schema omits it
-const bookHotelRequestSchema = bookRateRequestSchema.omit({ clientReference: true });
+// clientReference and transactionId are minted server-side and held in the booking attempt, so the
+// client-facing schema omits both: payment details never travel from the client to /rates/book.
+const bookHotelRequestSchema = bookRateRequestSchema.omit({
+  clientReference: true,
+  transactionId: true,
+});
 
 module.exports = { bookHotelRequestSchema, bookRateRequestSchema };

@@ -277,6 +277,51 @@ describe("LiteApiService.searchHotels", () => {
     expect(error).toBeInstanceOf(ExternalAPIError);
     expect(error).toMatchObject({ statusCode: 502, message: "Hotel search failed" });
   });
+
+  it("preserves the provider code, message and description on a rejected request", async () => {
+    const { service } = setup({
+      error: {
+        code: 2001,
+        message: "no availability",
+        description: "the rate is no longer available",
+      },
+    });
+
+    const error = await service.searchHotels(searchRequest()).catch((err) => err);
+
+    expect(error.provider).toEqual({
+      code: 2001,
+      message: "no availability",
+      description: "the rate is no longer available",
+      httpStatus: null,
+    });
+  });
+
+  it("records no provider info when the request never reached LiteAPI", async () => {
+    const httpError = Object.assign(new Error("socket hang up"), { isAxiosError: true });
+    const service = new LiteApiService({ post: vi.fn().mockRejectedValue(httpError) });
+
+    const error = await service.searchHotels(searchRequest()).catch((err) => err);
+
+    expect(error.provider).toBeNull();
+  });
+
+  it("does not read a provider error code as an HTTP status", async () => {
+    const { service } = setup({ error: { code: 404, message: "not found" } });
+
+    const error = await service.searchHotels(searchRequest()).catch((err) => err);
+
+    expect(error.statusCode).toBe(502);
+  });
+
+  it("does not treat a failed read as ambiguous", async () => {
+    const httpError = Object.assign(new Error("socket hang up"), { isAxiosError: true });
+    const service = new LiteApiService({ post: vi.fn().mockRejectedValue(httpError) });
+
+    const error = await service.searchHotels(searchRequest()).catch((err) => err);
+
+    expect(error.ambiguous).toBe(false);
+  });
 });
 
 const rateCriteria = () => ({
@@ -1235,5 +1280,109 @@ describe("LiteApiService.cancelBooking", () => {
       statusCode: 502,
       message: "Cancelling the booking failed",
     });
+  });
+});
+
+describe("LiteApiService retry", () => {
+  const transportFailure = () => Object.assign(new Error("socket hang up"), { isAxiosError: true });
+
+  const searchResponse = () =>
+    ({ data: liteApiResponse([{ hotel: liteApiHotel(), roomTypes: [roomType()] }]) });
+
+  it("repeats a read that failed in transit and uses the second response", async () => {
+    const client = { post: vi.fn().mockRejectedValueOnce(transportFailure()).mockResolvedValue(searchResponse()) };
+    const sleep = vi.fn().mockResolvedValue();
+    const service = new LiteApiService(client, { sleep });
+
+    const result = await service.searchHotels(searchRequest());
+
+    expect(client.post).toHaveBeenCalledTimes(2);
+    expect(result.hotels).toHaveLength(1);
+    expect(sleep).toHaveBeenCalledWith(250);
+  });
+
+  it("gives up on a read once the attempt limit is reached", async () => {
+    const client = { post: vi.fn().mockRejectedValue(transportFailure()) };
+    const service = new LiteApiService(client, { sleep: vi.fn().mockResolvedValue() });
+
+    await expect(service.searchHotels(searchRequest())).rejects.toBeInstanceOf(ExternalAPIError);
+
+    expect(client.post).toHaveBeenCalledTimes(3);
+  });
+
+  it("retries a read that was refused at the rate limit", async () => {
+    const client = {
+      post: vi
+        .fn()
+        .mockResolvedValueOnce({ status: 200, data: { error: { code: 4290, message: "request limit" } } })
+        .mockResolvedValue(searchResponse()),
+    };
+    const service = new LiteApiService(client, { sleep: vi.fn().mockResolvedValue() });
+
+    const result = await service.searchHotels(searchRequest());
+
+    expect(client.post).toHaveBeenCalledTimes(2);
+    expect(result.hotels).toHaveLength(1);
+  });
+
+  it("never repeats a booking that failed in transit, and calls it ambiguous", async () => {
+    const client = { post: vi.fn().mockRejectedValue(transportFailure()) };
+    const sleep = vi.fn().mockResolvedValue();
+    const service = new LiteApiService(client, { sleep });
+
+    const error = await service.bookRate(bookRateRequest()).catch((err) => err);
+
+    expect(client.post).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
+    expect(error.provider).toBeNull();
+    expect(error.ambiguous).toBe(true);
+  });
+
+  it("surfaces a booking left incomplete without repeating it", async () => {
+    const client = {
+      post: vi.fn().mockRejectedValue(
+        Object.assign(new Error("Request failed with status code 400"), {
+          isAxiosError: true,
+          response: {
+            status: 400,
+            data: {
+              error: {
+                code: 2014,
+                message: "booking incomplete",
+                description: "payment or booking confirmation did not finish",
+              },
+            },
+          },
+        })
+      ),
+    };
+    const service = new LiteApiService(client, { sleep: vi.fn().mockResolvedValue() });
+
+    const error = await service.bookRate(bookRateRequest()).catch((err) => err);
+
+    expect(client.post).toHaveBeenCalledTimes(1);
+    expect(error.provider).toMatchObject({
+      code: 2014,
+      description: "payment or booking confirmation did not finish",
+      httpStatus: 400,
+    });
+    expect(error.ambiguous).toBe(true);
+  });
+
+  it("does not call a rejected booking request ambiguous", async () => {
+    const client = {
+      post: vi.fn().mockRejectedValue(
+        Object.assign(new Error("Request failed with status code 400"), {
+          isAxiosError: true,
+          response: { status: 400, data: { error: { code: 4002, message: "transactionId missing" } } },
+        })
+      ),
+    };
+    const service = new LiteApiService(client, { sleep: vi.fn().mockResolvedValue() });
+
+    const error = await service.bookRate(bookRateRequest()).catch((err) => err);
+
+    expect(error.provider).toMatchObject({ code: 4002 });
+    expect(error.ambiguous).toBe(false);
   });
 });

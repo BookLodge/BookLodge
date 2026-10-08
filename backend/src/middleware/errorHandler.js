@@ -1,6 +1,18 @@
 const { AppError, ExternalAPIError } = require("../errors");
 const { sendError } = require("../utils/apiResponse");
 
+// The provider's code and description are the only parts a client can act on; its `message` is a
+// generic label kept for logs. Nothing is exposed for errors that did not come from the provider.
+const externalDetails = (error) => {
+  if (!(error instanceof ExternalAPIError) || !error.provider) {
+    return null;
+  }
+
+  const { code, description } = error.provider;
+
+  return { provider: { code, description }, ambiguous: error.ambiguous };
+};
+
 const errorHandler = (err, req, res, next) => {
   let error = err;
 
@@ -51,7 +63,7 @@ const errorHandler = (err, req, res, next) => {
     res,
     error.message,
     error.statusCode || 500,
-    null
+    externalDetails(error)
   );
 };
 

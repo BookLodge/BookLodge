@@ -6,6 +6,8 @@ const { mapPrebookResponse } = require("./mappers/prebookMapper");
 const { mapBookRateRequest, mapBookRateResponse } = require("./mappers/bookRateMapper");
 const { mapCancelBookingResponse } = require("./mappers/cancelBookingMapper");
 const { AppError, ExternalAPIError } = require("../../errors");
+const { buildProviderInfo, isAmbiguous, toClientStatus } = require("./errors");
+const { planRetry, retryAfterMs } = require("./retryPolicy");
 const { bookRateRequestSchema } = require("../../schemas/bookRateSchema");
 const { hotelDetailsRequestSchema } = require("../../schemas/hotelDetailsSchema");
 const { locationSearchRequestSchema } = require("../../schemas/locationSearchSchema");
@@ -37,15 +39,76 @@ const {
   cancelBookingResponseSchema,
 } = require("./schemas/cancelBookingSchema");
 
-const toClientStatus = (providerStatus) => (providerStatus === 404 ? 404 : 502);
-
 /**
  * BookLodge-facing boundary for LiteAPI. Everything provider-specific stays
  * here, so callers never touch LiteAPI endpoints, formats or credentials.
  */
 class LiteApiService {
-  constructor(client = liteApiClient) {
+  constructor(client = liteApiClient, { sleep } = {}) {
     this.http = client;
+    this.sleep = sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  }
+
+  /**
+   * The single place a LiteAPI call is made and a LiteAPI failure is translated. `operation`
+   * names the call for the retry and ambiguity policy; `send` is the actual HTTP call.
+   */
+  async callProvider(operation, message, send) {
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        const response = await send();
+
+        if (!response.data?.error) {
+          return response.data;
+        }
+
+        const provider = buildProviderInfo(response.data, response.status);
+        const plan = planRetry({ operation, transportFailure: false, provider, attempt });
+
+        if (plan.retry) {
+          console.error(`[liteApi] retrying ${operation} after ${plan.reason}, in ${plan.delayMs}ms`);
+          await this.sleep(plan.delayMs);
+          continue;
+        }
+
+        console.error(`[liteApi] LiteAPI rejected the ${operation} request:`, provider);
+
+        throw new ExternalAPIError(message, toClientStatus(response.status), {
+          provider,
+          ambiguous: isAmbiguous(operation, false, provider),
+        });
+      } catch (err) {
+        if (err instanceof ExternalAPIError) {
+          throw err;
+        }
+
+        const httpStatus = err.response?.status;
+        const provider = buildProviderInfo(err.response?.data, httpStatus);
+        // Axios rejects on any non-2xx, so a response present means the provider did answer:
+        // only the absence of one is a transport failure.
+        const transportFailure = !err.response;
+        const plan = planRetry({
+          operation,
+          transportFailure,
+          provider,
+          attempt,
+          retryAfter: retryAfterMs(err.response?.headers),
+        });
+
+        if (plan.retry) {
+          console.error(`[liteApi] retrying ${operation} after ${plan.reason}, in ${plan.delayMs}ms`);
+          await this.sleep(plan.delayMs);
+          continue;
+        }
+
+        console.error(`[liteApi] ${message}:`, err.message, httpStatus, provider);
+
+        throw new ExternalAPIError(message, toClientStatus(httpStatus), {
+          provider,
+          ambiguous: isAmbiguous(operation, transportFailure, provider),
+        });
+      }
+    }
   }
 
   async searchHotels(search) {
@@ -54,29 +117,11 @@ class LiteApiService {
       throw new AppError("Invalid hotel search request", 400);
     }
 
-    let response;
-    try {
-      response = await this.http.post("/hotels/rates", requestResult.data);
-    } catch (err) {
-      const providerStatus = err.response?.status;
-      console.error(
-        "[liteApi] Hotel search request failed:",
-        err.message,
-        providerStatus,
-        err.response?.data?.error
-      );
-      throw new ExternalAPIError("Hotel search failed", toClientStatus(providerStatus));
-    }
+    const response = await this.callProvider("hotelSearch", "Hotel search failed", () =>
+      this.http.post("/hotels/rates", requestResult.data)
+    );
 
-    if (response.data?.error) {
-      console.error("[liteApi] LiteAPI rejected the hotel search request:", response.data.error);
-      throw new ExternalAPIError(
-        "Hotel search failed",
-        toClientStatus(response.status ?? response.data.error.code)
-      );
-    }
-
-    const responseResult = liteApiHotelSearchResponseSchema.safeParse(response.data);
+    const responseResult = liteApiHotelSearchResponseSchema.safeParse(response);
     if (!responseResult.success) {
       throw new ExternalAPIError("Hotel search failed");
     }
@@ -97,29 +142,11 @@ class LiteApiService {
       throw new AppError("Invalid hotel details request", 400);
     }
 
-    let detailsResponse;
-    try {
-      detailsResponse = await this.http.get("/data/hotel", { params: { hotelId } });
-    } catch (err) {
-      const providerStatus = err.response?.status;
-      console.error(
-        "[liteApi] Hotel details request failed:",
-        err.message,
-        providerStatus,
-        err.response?.data?.error
-      );
-      throw new ExternalAPIError("Hotel details failed", toClientStatus(providerStatus));
-    }
+    const details = await this.callProvider("hotelDetails", "Hotel details failed", () =>
+      this.http.get("/data/hotel", { params: { hotelId } })
+    );
 
-    if (detailsResponse.data?.error) {
-      console.error("[liteApi] LiteAPI rejected the hotel details request:", detailsResponse.data.error);
-      throw new ExternalAPIError(
-        "Hotel details failed",
-        toClientStatus(detailsResponse.status ?? detailsResponse.data.error.code)
-      );
-    }
-
-    const detailsResult = liteApiHotelDetailsResponseSchema.safeParse(detailsResponse.data);
+    const detailsResult = liteApiHotelDetailsResponseSchema.safeParse(details);
     if (!detailsResult.success) {
       throw new ExternalAPIError("Hotel details failed");
     }
@@ -134,29 +161,11 @@ class LiteApiService {
       includeHotelData: true,
     };
 
-    let ratesResponse;
-    try {
-      ratesResponse = await this.http.post("/hotels/rates", ratesRequest);
-    } catch (err) {
-      const providerStatus = err.response?.status;
-      console.error(
-        "[liteApi] Hotel rates request failed:",
-        err.message,
-        providerStatus,
-        err.response?.data?.error
-      );
-      throw new ExternalAPIError("Hotel details failed", toClientStatus(providerStatus));
-    }
+    const rates = await this.callProvider("hotelDetails", "Hotel details failed", () =>
+      this.http.post("/hotels/rates", ratesRequest)
+    );
 
-    if (ratesResponse.data?.error) {
-      console.error("[liteApi] LiteAPI rejected the hotel rates request:", ratesResponse.data.error);
-      throw new ExternalAPIError(
-        "Hotel details failed",
-        toClientStatus(ratesResponse.status ?? ratesResponse.data.error.code)
-      );
-    }
-
-    const ratesResult = liteApiHotelSearchResponseSchema.safeParse(ratesResponse.data);
+    const ratesResult = liteApiHotelSearchResponseSchema.safeParse(rates);
     if (!ratesResult.success) {
       throw new ExternalAPIError("Hotel details failed");
     }
@@ -177,31 +186,11 @@ class LiteApiService {
       throw new AppError("Invalid location search request", 400);
     }
 
-    let response;
-    try {
-      response = await this.http.get("/data/places", {
-        params: { textQuery: requestResult.data.query },
-      });
-    } catch (err) {
-      const providerStatus = err.response?.status;
-      console.error(
-        "[liteApi] Location search request failed:",
-        err.message,
-        providerStatus,
-        err.response?.data?.error
-      );
-      throw new ExternalAPIError("Location search failed", toClientStatus(providerStatus));
-    }
+    const response = await this.callProvider("locationSearch", "Location search failed", () =>
+      this.http.get("/data/places", { params: { textQuery: requestResult.data.query } })
+    );
 
-    if (response.data?.error) {
-      console.error("[liteApi] LiteAPI rejected the location search request:", response.data.error);
-      throw new ExternalAPIError(
-        "Location search failed",
-        toClientStatus(response.status ?? response.data.error.code)
-      );
-    }
-
-    const responseResult = liteApiPlacesResponseSchema.safeParse(response.data);
+    const responseResult = liteApiPlacesResponseSchema.safeParse(response);
     if (!responseResult.success) {
       throw new ExternalAPIError("Location search failed");
     }
@@ -222,32 +211,14 @@ class LiteApiService {
       throw new AppError("Invalid prebook request", 400);
     }
 
-    let response;
-    try {
-      response = await this.http.post("/rates/prebook", {
+    const response = await this.callProvider("prebook", "Prebooking failed", () =>
+      this.http.post("/rates/prebook", {
         offerId: requestResult.data.offerId,
         usePaymentSdk: true,
-      });
-    } catch (err) {
-      const providerStatus = err.response?.status;
-      console.error(
-        "[liteApi] Prebook request failed:",
-        err.message,
-        providerStatus,
-        err.response?.data?.error
-      );
-      throw new ExternalAPIError("Prebooking failed", toClientStatus(providerStatus));
-    }
+      })
+    );
 
-    if (response.data?.error) {
-      console.error("[liteApi] LiteAPI rejected the prebook request:", response.data.error);
-      throw new ExternalAPIError(
-        "Prebooking failed",
-        toClientStatus(response.status ?? response.data.error.code)
-      );
-    }
-
-    const responseResult = liteApiPrebookResponseSchema.safeParse(response.data);
+    const responseResult = liteApiPrebookResponseSchema.safeParse(response);
     if (!responseResult.success) {
       throw new ExternalAPIError("Prebooking failed");
     }
@@ -273,29 +244,11 @@ class LiteApiService {
       throw new AppError("Invalid book rate request", 400);
     }
 
-    let response;
-    try {
-      response = await this.http.post("/rates/book", providerRequestResult.data);
-    } catch (err) {
-      const providerStatus = err.response?.status;
-      console.error(
-        "[liteApi] Book rate request failed:",
-        err.message,
-        providerStatus,
-        err.response?.data?.error
-      );
-      throw new ExternalAPIError("Booking failed", toClientStatus(providerStatus));
-    }
+    const response = await this.callProvider("bookRate", "Booking failed", () =>
+      this.http.post("/rates/book", providerRequestResult.data)
+    );
 
-    if (response.data?.error) {
-      console.error("[liteApi] LiteAPI rejected the book rate request:", response.data.error);
-      throw new ExternalAPIError(
-        "Booking failed",
-        toClientStatus(response.status ?? response.data.error.code)
-      );
-    }
-
-    const responseResult = liteApiBookRateResponseSchema.safeParse(response.data);
+    const responseResult = liteApiBookRateResponseSchema.safeParse(response);
     if (!responseResult.success) {
       throw new ExternalAPIError("Booking failed");
     }
@@ -309,29 +262,11 @@ class LiteApiService {
   }
 
   async cancelBooking(bookingId) {
-    let response;
-    try {
-      response = await this.http.put(`/bookings/${bookingId}`);
-    } catch (err) {
-      const providerStatus = err.response?.status;
-      console.error(
-        "[liteApi] Cancel booking request failed:",
-        err.message,
-        providerStatus,
-        err.response?.data?.error
-      );
-      throw new ExternalAPIError("Cancelling the booking failed", toClientStatus(providerStatus));
-    }
+    const response = await this.callProvider("cancelBooking", "Cancelling the booking failed", () =>
+      this.http.put(`/bookings/${bookingId}`)
+    );
 
-    if (response.data?.error) {
-      console.error("[liteApi] LiteAPI rejected the cancel booking request:", response.data.error);
-      throw new ExternalAPIError(
-        "Cancelling the booking failed",
-        toClientStatus(response.status ?? response.data.error.code)
-      );
-    }
-
-    const responseResult = liteApiCancelBookingResponseSchema.safeParse(response.data);
+    const responseResult = liteApiCancelBookingResponseSchema.safeParse(response);
     if (!responseResult.success) {
       throw new ExternalAPIError("Cancelling the booking failed");
     }
