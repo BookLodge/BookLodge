@@ -10,7 +10,13 @@ const bookHotel = async (req, res) => {
     clientReference: generateClientReference(),
   });
 
-  sendSuccess(res, "Hotel booked successfully", result, 201);
+  const booking = await Booking.create({
+    ...result,
+    userId: req.user.userId,
+    payment: { transactionId: req.body.transactionId },
+  });
+
+  sendSuccess(res, "Hotel booked successfully", booking, 201);
 };
 
 const prebookHotel = async (req, res) => {

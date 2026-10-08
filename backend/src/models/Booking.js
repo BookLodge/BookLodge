@@ -62,11 +62,6 @@ const bookingSchema = new mongoose.Schema(
           required: true,
         },
 
-        offerId: {
-          type: String,
-          required: true,
-        },
-
         roomName: String,
         boardName: String,
       },

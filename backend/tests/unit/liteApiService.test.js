@@ -855,10 +855,37 @@ const liteApiBookRateResponse = () => ({
     clientReference: "BL-2f1c9a4e-7d3b-4f8a-9c1e-5a6b7c8d9e0f",
     status: "CONFIRMED",
     hotelConfirmationCode: "HC-1234",
+    supplierBookingId: "SB-99",
+    checkin: "2026-11-02",
+    checkout: "2026-11-05",
+    hotel: { hotelId: "lp1897", name: "Sample Hotel" },
+    bookedRooms: [
+      {
+        occupancy_number: 1,
+        roomType: { roomTypeId: "RT123", name: "Standard Room" },
+        boardName: "Room Only",
+        amount: 412.76,
+        currency: "USD",
+      },
+    ],
+    holder: { firstName: "Ada", lastName: "Lovelace", email: "ada@example.com", phone: "+44" },
+    price: 412.76,
+    currency: "USD",
+    createdAt: "2026-10-08T10:00:00.000Z",
   },
+  sandbox: true,
 });
 
-const bookLodgeBookRate = () => ({ bookingId: "b_7f3d9c2a" });
+const bookLodgeBookRate = () => ({
+  clientReference: "BL-2f1c9a4e-7d3b-4f8a-9c1e-5a6b7c8d9e0f",
+  status: "CONFIRMED",
+  hotel: { hotelId: "lp1897", name: "Sample Hotel" },
+  stay: { checkin: "2026-11-02", checkout: "2026-11-05" },
+  rooms: [{ occupancyNumber: 1, roomName: "Standard Room", boardName: "Room Only" }],
+  holder: { firstName: "Ada", lastName: "Lovelace", email: "ada@example.com" },
+  price: { amount: 412.76, currency: "USD" },
+  liteApi: { bookingId: "b_7f3d9c2a" },
+});
 
 const setupBookRate = (providerBody = liteApiBookRateResponse()) => {
   const client = { post: vi.fn().mockResolvedValue({ data: providerBody }) };
@@ -1057,6 +1084,40 @@ describe("LiteApiService.bookRate", () => {
 
     expect(result).toEqual(bookLodgeBookRate());
     expect(result).not.toHaveProperty("hotelConfirmationCode");
+    expect(result).not.toHaveProperty("supplierBookingId");
+    expect(result).not.toHaveProperty("sandbox");
     expect(result).not.toHaveProperty("data");
+  });
+
+  it("carries the provider booking id under liteApi", async () => {
+    const { service } = setupBookRate();
+
+    const result = await service.bookRate(bookRateRequest());
+
+    expect(result.liteApi).toEqual({ bookingId: "b_7f3d9c2a" });
+  });
+
+  it.each(["CANCELED", "CANCELLED", "canceled"])(
+    "maps the provider's %s spelling to our CANCELLED status",
+    async (providerStatus) => {
+      const providerBody = liteApiBookRateResponse();
+      providerBody.data.status = providerStatus;
+      const { service } = setupBookRate(providerBody);
+
+      const result = await service.bookRate(bookRateRequest());
+
+      expect(result.status).toBe("CANCELLED");
+    }
+  );
+
+  it("refuses to build a booking whose status our model cannot store", async () => {
+    const providerBody = liteApiBookRateResponse();
+    providerBody.data.status = "PENDING_PAYMENT";
+    const { service } = setupBookRate(providerBody);
+
+    await expect(service.bookRate(bookRateRequest())).rejects.toMatchObject({
+      statusCode: 500,
+      message: "Failed to build the booking response",
+    });
   });
 });
