@@ -213,3 +213,140 @@ describe("GET /api/bookings/:bookingId", () => {
     expect(spy).not.toHaveBeenCalled();
   });
 });
+
+describe("PUT /api/bookings/:bookingId", () => {
+  const ownerId = "507f1f77bcf86cd799439011";
+  const providerBookingId = "hSq2gVDrf";
+
+  const cancelled = {
+    bookingId: providerBookingId,
+    status: "CANCELLED",
+    cancellationFee: 25,
+    refundAmount: 125,
+    currency: "USD",
+  };
+
+  const storedBooking = (overrides = {}) => ({
+    _id: bookingId,
+    userId: ownerId,
+    status: "CONFIRMED",
+    liteApi: { bookingId: providerBookingId },
+    save: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  });
+
+  const cancel = (id = bookingId, authToken = token) =>
+    fetch(`${base}/api/bookings/${id}`, {
+      method: "PUT",
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+    });
+
+  it("returns 200 with the cancellation and marks the booking cancelled", async () => {
+    const booking = storedBooking();
+    vi.spyOn(Booking, "findById").mockResolvedValue(booking);
+    const spy = vi.spyOn(liteApiService, "cancelBooking").mockResolvedValue(cancelled);
+
+    const response = await cancel();
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      success: true,
+      message: "Booking cancelled successfully",
+      data: cancelled,
+    });
+    expect(booking.status).toBe("CANCELLED");
+    expect(booking.save).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels at the provider with the provider's booking id, not ours", async () => {
+    vi.spyOn(Booking, "findById").mockResolvedValue(storedBooking());
+    const spy = vi.spyOn(liteApiService, "cancelBooking").mockResolvedValue(cancelled);
+
+    await cancel();
+
+    expect(spy).toHaveBeenCalledWith(providerBookingId);
+  });
+
+  it("reports an unknown booking as not found and never reaches the provider", async () => {
+    vi.spyOn(Booking, "findById").mockResolvedValue(null);
+    const spy = vi.spyOn(liteApiService, "cancelBooking");
+
+    const response = await cancel();
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toMatchObject({ success: false, message: "Booking not found" });
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("refuses a booking owned by another user and never reaches the provider", async () => {
+    vi.spyOn(Booking, "findById").mockResolvedValue(
+      storedBooking({ userId: "507f1f77bcf86cd799439099" })
+    );
+    const spy = vi.spyOn(liteApiService, "cancelBooking");
+
+    const response = await cancel();
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({
+      success: false,
+      message: "You are not authorized to cancel this booking",
+    });
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("refuses a booking that is not confirmed and never reaches the provider", async () => {
+    vi.spyOn(Booking, "findById").mockResolvedValue(storedBooking({ status: "PENDING_PAYMENT" }));
+    const spy = vi.spyOn(liteApiService, "cancelBooking");
+
+    const response = await cancel();
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      success: false,
+      message: "This booking cannot be cancelled",
+    });
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("leaves the booking uncancelled when the provider refuses", async () => {
+    const booking = storedBooking();
+    vi.spyOn(Booking, "findById").mockResolvedValue(booking);
+    vi.spyOn(liteApiService, "cancelBooking").mockRejectedValue(
+      new ExternalAPIError("Cancelling the booking failed", 502)
+    );
+
+    const response = await cancel();
+
+    expect(response.status).toBe(502);
+    expect(booking.status).toBe("CONFIRMED");
+    expect(booking.save).not.toHaveBeenCalled();
+  });
+
+  it("refuses a request with no token and never queries the database", async () => {
+    const spy = vi.spyOn(Booking, "findById");
+
+    const response = await cancel(bookingId, null);
+
+    expect(response.status).toBe(401);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("refuses an invalid token and never queries the database", async () => {
+    const spy = vi.spyOn(Booking, "findById");
+
+    const response = await cancel(bookingId, "not-a-token");
+
+    expect(response.status).toBe(401);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("rejects a malformed booking id without querying the database", async () => {
+    const spy = vi.spyOn(Booking, "findById");
+
+    const response = await cancel("not-an-object-id");
+
+    expect(response.status).toBe(400);
+    expect(spy).not.toHaveBeenCalled();
+  });
+});
