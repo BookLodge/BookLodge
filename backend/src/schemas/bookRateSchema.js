@@ -19,4 +19,7 @@ const bookRateRequestSchema = z.object({
   transactionId: z.string(),
 });
 
-module.exports = { bookRateRequestSchema };
+// clientReference is minted server-side, so the client-facing schema omits it
+const bookHotelRequestSchema = bookRateRequestSchema.omit({ clientReference: true });
+
+module.exports = { bookHotelRequestSchema, bookRateRequestSchema };
