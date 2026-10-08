@@ -4,6 +4,7 @@ const { mapHotelDetailsResponse } = require("./mappers/hotelDetailsMapper");
 const { mapLocationSearchResponse } = require("./mappers/locationSearchMapper");
 const { mapPrebookResponse } = require("./mappers/prebookMapper");
 const { mapBookRateRequest, mapBookRateResponse } = require("./mappers/bookRateMapper");
+const { mapCancelBookingResponse } = require("./mappers/cancelBookingMapper");
 const { AppError, ExternalAPIError } = require("../../errors");
 const { bookRateRequestSchema } = require("../../schemas/bookRateSchema");
 const { hotelDetailsRequestSchema } = require("../../schemas/hotelDetailsSchema");
@@ -31,6 +32,10 @@ const {
   liteApiBookRateResponseSchema,
   bookRateResponseSchema,
 } = require("./schemas/bookRateSchema");
+const {
+  liteApiCancelBookingResponseSchema,
+  cancelBookingResponseSchema,
+} = require("./schemas/cancelBookingSchema");
 
 const toClientStatus = (providerStatus) => (providerStatus === 404 ? 404 : 502);
 
@@ -298,6 +303,44 @@ class LiteApiService {
     const mappedResult = bookRateResponseSchema.safeParse(mapBookRateResponse(responseResult.data));
     if (!mappedResult.success) {
       throw new AppError("Failed to build the booking response", 500);
+    }
+
+    return mappedResult.data;
+  }
+
+  async cancelBooking(bookingId) {
+    let response;
+    try {
+      response = await this.http.put(`/bookings/${bookingId}`);
+    } catch (err) {
+      const providerStatus = err.response?.status;
+      console.error(
+        "[liteApi] Cancel booking request failed:",
+        err.message,
+        providerStatus,
+        err.response?.data?.error
+      );
+      throw new ExternalAPIError("Cancelling the booking failed", toClientStatus(providerStatus));
+    }
+
+    if (response.data?.error) {
+      console.error("[liteApi] LiteAPI rejected the cancel booking request:", response.data.error);
+      throw new ExternalAPIError(
+        "Cancelling the booking failed",
+        toClientStatus(response.status ?? response.data.error.code)
+      );
+    }
+
+    const responseResult = liteApiCancelBookingResponseSchema.safeParse(response.data);
+    if (!responseResult.success) {
+      throw new ExternalAPIError("Cancelling the booking failed");
+    }
+
+    const mappedResult = cancelBookingResponseSchema.safeParse(
+      mapCancelBookingResponse(responseResult.data)
+    );
+    if (!mappedResult.success) {
+      throw new AppError("Failed to build the cancel booking response", 500);
     }
 
     return mappedResult.data;
