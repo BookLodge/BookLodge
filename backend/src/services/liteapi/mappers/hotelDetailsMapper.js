@@ -21,13 +21,19 @@ const mapRates = (entry) => {
   return rates;
 };
 
-const mapPhoto = (photo) => ({
-  url: photo.url,
-  ...(photo.caption !== undefined && { caption: photo.caption }),
-  ...(photo.imageDescription !== undefined && { imageDescription: photo.imageDescription }),
-  ...(photo.mainPhoto !== undefined && { mainPhoto: photo.mainPhoto }),
-  ...(photo.hd_url !== undefined && { hd_url: photo.hd_url }),
-});
+// hotelImages use urlHd/defaultImage; room photos use hd_url/mainPhoto.
+const mapPhoto = (photo) => {
+  const mainPhoto = photo.mainPhoto ?? photo.defaultImage;
+  const hdUrl = photo.hd_url ?? photo.urlHd;
+
+  return {
+    url: photo.url,
+    ...(photo.caption !== undefined && { caption: photo.caption }),
+    ...(photo.imageDescription !== undefined && { imageDescription: photo.imageDescription }),
+    ...(mainPhoto !== undefined && { mainPhoto }),
+    ...(hdUrl !== undefined && { hd_url: hdUrl }),
+  };
+};
 
 const mapRoom = (room) => ({
   ...(room.id !== undefined && { id: room.id }),

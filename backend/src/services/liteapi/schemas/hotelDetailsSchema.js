@@ -7,6 +7,8 @@ const photoSchema = z.object({
   imageDescription: z.string().optional(),
   mainPhoto: z.boolean().optional(),
   hd_url: z.string().optional(),
+  urlHd: z.string().optional(),
+  defaultImage: z.boolean().optional(),
 }).passthrough();
 
 const hotelRoomSchema = z.object({
