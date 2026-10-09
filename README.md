@@ -55,6 +55,55 @@ be in `process.env`; a missing `.env` is treated as production.
 Neither file is committed. `.env.test` holds live sandbox credentials and needs the same variables
 as `.env`.
 
+## Docker deployment (AWS EC2)
+
+The backend can run in a Docker container on an EC2 Ubuntu instance. The repository includes
+`backend/Dockerfile`; build from the repository root so Docker uses the backend directory as its
+build context:
+
+```bash
+docker build -t booklodge-backend ./backend
+```
+
+### Automatic deployment from `dev`
+
+The GitHub Actions workflow at `.github/workflows/deploy.yml` publishes the backend image to GitHub
+Container Registry (GHCR) and deploys it to EC2 whenever a commit is pushed to `dev`. It currently
+handles **deployment only**; automated test execution is not part of this workflow.
+
+The workflow:
+
+1. Builds the image using `backend/` as the Docker build context.
+2. Publishes `ghcr.io/booklodge/booklodge-backend:latest` to GHCR.
+3. Connects to EC2 over SSH and runs `~/run-booklodge.sh`, which pulls the image and replaces the
+   running container.
+
+### GitHub Actions secrets
+
+Configure these under **Repository Settings → Secrets and variables → Actions → Repository secrets**:
+
+| Secret | Value |
+| --- | --- |
+| `EC2_HOST` | The EC2 instance's public IPv4 address or public DNS name |
+| `EC2_USER` | The SSH username, usually `ubuntu` for Ubuntu EC2 images |
+| `EC2_SSH_KEY` | The complete private SSH key used to connect to the instance, including its key header and footer |
+
+Never commit the private key or application credentials to the repository. The application environment
+variables must be supplied to the container at runtime on EC2, not baked into the Docker image.
+
+### EC2 and GHCR prerequisites
+
+- Docker must be installed and running on EC2, and the SSH user must be able to run Docker commands.
+- The EC2 security group must allow inbound TCP traffic on port `5000` if clients will connect directly
+  to the API on that port.
+- The EC2 instance must have `~/run-booklodge.sh` configured to pull
+  `ghcr.io/booklodge/booklodge-backend:latest` and start the container with the required environment.
+- Make the GHCR package public if the EC2 host is expected to pull it without registry authentication.
+  Verify package visibility after the first successful image publication.
+
+A push to `dev` triggers the deployment workflow. Review the workflow and configure the required
+repository secrets before relying on it for deployments.
+
 ## How a booking works
 
 The flow is deliberately split into two calls with the customer's payment in between.
