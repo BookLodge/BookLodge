@@ -21,6 +21,21 @@ const mapRates = (entry) => {
   return rates;
 };
 
+const mapPhoto = (photo) => ({
+  url: photo.url,
+  ...(photo.caption !== undefined && { caption: photo.caption }),
+  ...(photo.imageDescription !== undefined && { imageDescription: photo.imageDescription }),
+  ...(photo.mainPhoto !== undefined && { mainPhoto: photo.mainPhoto }),
+  ...(photo.hd_url !== undefined && { hd_url: photo.hd_url }),
+});
+
+const mapRoom = (room) => ({
+  ...(room.id !== undefined && { id: room.id }),
+  name: room.roomName ?? room.name ?? "Room",
+  ...(room.description !== undefined && { description: room.description }),
+  photos: (room.photos ?? []).map(mapPhoto),
+});
+
 const mapHotelDetailsResponse = (hotelDetailsResponse, hotelRatesResponse) => {
   const { data } = hotelDetailsResponse;
   const ratesEntry = hotelRatesResponse.data.find((entry) => entry.hotelId === data.id);
@@ -30,6 +45,8 @@ const mapHotelDetailsResponse = (hotelDetailsResponse, hotelRatesResponse) => {
     name: data.name,
     description: data.hotelDescription,
     photo: data.main_photo,
+    photos: (data.hotelImages ?? []).map(mapPhoto),
+    rooms: (data.rooms ?? []).map(mapRoom),
     address: data.address,
     city: data.city,
     country: data.country,
