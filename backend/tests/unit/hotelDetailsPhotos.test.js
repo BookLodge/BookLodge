@@ -1,4 +1,8 @@
-const { describe, it, expect } = require("vitest");
+import { describe, it, expect } from "vitest";
+import { createRequire } from "node:module";
+
+// Source modules are CommonJS; loading them through Node keeps one instance of each module.
+const require = createRequire(import.meta.url);
 const { mapHotelDetailsResponse } = require("../../src/services/liteapi/mappers/hotelDetailsMapper");
 const {
   liteApiHotelDetailsResponseSchema,
