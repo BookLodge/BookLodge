@@ -108,6 +108,7 @@ describe("hotel details photos", () => {
         id: 501,
         name: "Deluxe King",
         description: "A room with a king bed",
+        amenities: [],
         photos: [
           {
             url: "https://images.example/room-1.jpg",
@@ -124,6 +125,7 @@ describe("hotel details photos", () => {
       {
         id: 502,
         name: "Standard Twin",
+        amenities: [],
         photos: [],
       },
     ]);
@@ -157,7 +159,59 @@ describe("hotel details photos", () => {
 
     expect(mapped.photos).toEqual([]);
     expect(mapped.rooms).toEqual([
-      { id: 503, name: "Basic Room", photos: [] },
+      { id: 503, name: "Basic Room", amenities: [], photos: [] },
+    ]);
+    expect(hotelDetailsResponseSchema.safeParse(mapped).success).toBe(true);
+  });
+
+  it("maps each room's bed type, occupancy and amenities", () => {
+    const detailsWithRoomContent = {
+      data: {
+        ...hotelDetailsFixture.data,
+        rooms: [
+          {
+            id: 601,
+            roomName: "Family Suite",
+            maxOccupancy: 5,
+            bedTypes: [
+              { quantity: 1, bedType: "King Bed" },
+              { quantity: 2, bedType: "Single Bed" },
+            ],
+            roomAmenities: [
+              { amenitiesId: 1, name: "Balcony" },
+              { amenitiesId: 2, name: "Coffee Machine" },
+            ],
+          },
+          {
+            id: 602,
+            roomName: "Twin",
+            maxAdults: 2,
+            bedTypes: [{ bedType: "Single Bed" }],
+          },
+        ],
+      },
+    };
+
+    const providerDetails = liteApiHotelDetailsResponseSchema.parse(detailsWithRoomContent);
+    const mapped = mapHotelDetailsResponse(providerDetails, { data: [] });
+
+    expect(mapped.rooms).toEqual([
+      {
+        id: 601,
+        name: "Family Suite",
+        maxOccupancy: 5,
+        bedType: "1 King Bed + 2 Single Bed",
+        amenities: ["Balcony", "Coffee Machine"],
+        photos: [],
+      },
+      {
+        id: 602,
+        name: "Twin",
+        maxOccupancy: 2,
+        bedType: "Single Bed",
+        amenities: [],
+        photos: [],
+      },
     ]);
     expect(hotelDetailsResponseSchema.safeParse(mapped).success).toBe(true);
   });

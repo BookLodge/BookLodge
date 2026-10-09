@@ -11,11 +11,26 @@ const photoSchema = z.object({
   defaultImage: z.boolean().optional(),
 }).passthrough();
 
+const bedTypeSchema = z.object({
+  quantity: z.union([z.string(), z.number()]).optional(),
+  bedType: z.string().optional(),
+  bedSize: z.string().optional(),
+}).passthrough();
+
+const roomAmenitySchema = z.object({
+  amenitiesId: z.union([z.string(), z.number()]).optional(),
+  name: z.union([z.string(), z.number()]).optional(),
+}).passthrough();
+
 const hotelRoomSchema = z.object({
   id: z.union([z.string(), z.number()]).optional(),
   roomName: z.string().optional(),
   name: z.string().optional(),
   description: z.string().optional(),
+  maxOccupancy: z.union([z.string(), z.number()]).optional(),
+  maxAdults: z.union([z.string(), z.number()]).optional(),
+  bedTypes: z.array(bedTypeSchema).optional().default([]),
+  roomAmenities: z.array(roomAmenitySchema).optional().default([]),
   photos: z.array(photoSchema).optional().default([]),
 }).passthrough();
 
@@ -63,6 +78,9 @@ const bookLodgeRoomSchema = z.object({
   id: z.union([z.string(), z.number()]).optional(),
   name: z.string(),
   description: z.string().optional(),
+  maxOccupancy: z.number().optional(),
+  bedType: z.string().optional(),
+  amenities: z.array(z.string()),
   photos: z.array(bookLodgePhotoSchema),
 });
 

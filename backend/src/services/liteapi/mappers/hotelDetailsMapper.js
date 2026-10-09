@@ -35,12 +35,36 @@ const mapPhoto = (photo) => {
   };
 };
 
-const mapRoom = (room) => ({
-  ...(room.id !== undefined && { id: room.id }),
-  name: room.roomName ?? room.name ?? "Room",
-  ...(room.description !== undefined && { description: room.description }),
-  photos: (room.photos ?? []).map(mapPhoto),
-});
+const toNumber = (value) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : undefined;
+};
+
+const describeBeds = (bedTypes) => {
+  const described = (bedTypes ?? [])
+    .map((bed) => [bed.quantity, bed.bedType ?? bed.bedSize].filter(Boolean).join(" "))
+    .filter(Boolean);
+
+  return described.length > 0 ? described.join(" + ") : undefined;
+};
+
+const mapRoom = (room) => {
+  const maxOccupancy = toNumber(room.maxOccupancy) ?? toNumber(room.maxAdults);
+  const bedType = describeBeds(room.bedTypes);
+  const amenities = (room.roomAmenities ?? [])
+    .map((amenity) => (amenity.name == null ? "" : String(amenity.name)))
+    .filter(Boolean);
+
+  return {
+    ...(room.id !== undefined && { id: room.id }),
+    name: room.roomName ?? room.name ?? "Room",
+    ...(room.description !== undefined && { description: room.description }),
+    ...(maxOccupancy !== undefined && { maxOccupancy }),
+    ...(bedType !== undefined && { bedType }),
+    amenities,
+    photos: (room.photos ?? []).map(mapPhoto),
+  };
+};
 
 const mapHotelDetailsResponse = (hotelDetailsResponse, hotelRatesResponse) => {
   const { data } = hotelDetailsResponse;
