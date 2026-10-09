@@ -1,0 +1,205 @@
+import React, { useState, useEffect } from 'react';
+import { useSearchParams, Link } from 'react-router-dom';
+import { bookingService } from '../services/bookingService';
+import { useAuth } from '../context/AuthContext';
+
+export const ConfirmationPage = () => {
+  const [searchParams] = useSearchParams();
+  const bookingId = searchParams.get('bookingId');
+  const reference = searchParams.get('reference');
+  const { isAuthenticated } = useAuth();
+
+  const [booking, setBooking] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadBooking = async () => {
+      try {
+        if (bookingId) {
+          const res = await bookingService.getBookingById(bookingId);
+          if (res?.data) {
+            setBooking(res.data);
+            return;
+          }
+        }
+
+        if (isAuthenticated) {
+          const myBookingsRes = await bookingService.getMyBookings().catch(() => null);
+          const found = myBookingsRes?.data?.bookings?.find(
+            (b) => b._id === bookingId || b.clientReference === reference
+          );
+          if (found) {
+            setBooking(found);
+          }
+        }
+      } catch (err) {
+        console.warn('Could not load booking details directly:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadBooking();
+  }, [bookingId, reference, isAuthenticated]);
+
+  const hotelName = booking?.hotel?.name || 'Hotel Accommodation';
+  const bookingRef = booking?.clientReference || reference || 'HB-CONFIRMED';
+  const status = booking?.status || 'CONFIRMED';
+  const checkin = booking?.stay?.checkin || 'Confirmed';
+  const checkout = booking?.stay?.checkout || 'Confirmed';
+  const roomName = booking?.rooms?.[0]?.roomName || 'Standard Room';
+  const boardName = booking?.rooms?.[0]?.boardName;
+  const leadGuest = booking?.holder
+    ? `${booking.holder.firstName || ''} ${booking.holder.lastName || ''}`.trim()
+    : 'Valued Guest';
+  const guestEmail = booking?.holder?.email;
+  const currency = booking?.price?.currency || 'USD';
+  const totalAmount = booking?.price?.amount;
+
+  return (
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-8">
+      {/* Header Banner */}
+      <div className="bg-stone-50 border border-stone-200 rounded-lg p-8 text-center space-y-3">
+        <div
+          style={{ backgroundColor: '#254546', color: '#fefae0' }}
+          className="w-12 h-12 rounded-md flex items-center justify-center mx-auto font-bold text-xl shadow-xs"
+        >
+          ✓
+        </div>
+        <h1 className="text-3xl font-extrabold text-black tracking-tight">
+          Reservation Confirmed
+        </h1>
+        <p className="text-xs text-slate-600 max-w-md mx-auto leading-relaxed">
+          Your payment has been verified and your room reservation is confirmed. A receipt and confirmation voucher have been generated below.
+        </p>
+      </div>
+
+      {/* Voucher Card */}
+      <div className="bg-white rounded-lg border border-stone-200 p-8 shadow-xs space-y-6">
+        {/* Reference Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-stone-100">
+          <div>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+              Booking Reference
+            </span>
+            <span className="text-xl font-mono font-extrabold" style={{ color: '#254546' }}>
+              {bookingRef}
+            </span>
+          </div>
+
+          <div className="sm:text-right">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+              Status
+            </span>
+            <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-md border border-emerald-200 inline-block">
+              {status === 'CONFIRMED' ? 'Confirmed & Paid' : status}
+            </span>
+          </div>
+        </div>
+
+        {/* Property & Room Details */}
+        <div className="space-y-4">
+          <div className="flex items-start space-x-4">
+            <div className="w-12 h-12 rounded-md bg-stone-100 border border-stone-200 flex items-center justify-center font-bold text-slate-600 shrink-0">
+              🏨
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-black">
+                {hotelName}
+              </h3>
+              <div
+                style={{ color: '#254546', backgroundColor: '#25454612', borderColor: '#25454630' }}
+                className="mt-2 inline-block text-xs px-2.5 py-0.5 rounded-md font-semibold border"
+              >
+                {roomName} {boardName ? `• ${boardName}` : ''}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Schedule & Guest Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-5 bg-stone-50 rounded-md text-xs text-slate-700 border border-stone-200">
+          <div>
+            <span className="text-slate-400 block font-semibold mb-1">Check-In</span>
+            <span className="font-bold text-sm text-black">{checkin}</span>
+            <span className="text-slate-400 block text-[11px]">From 14:00</span>
+          </div>
+
+          <div>
+            <span className="text-slate-400 block font-semibold mb-1">Check-Out</span>
+            <span className="font-bold text-sm text-black">{checkout}</span>
+            <span className="text-slate-400 block text-[11px]">Until 11:00</span>
+          </div>
+
+          <div>
+            <span className="text-slate-400 block font-semibold mb-1">Lead Guest</span>
+            <span className="font-bold text-sm text-black">
+              {leadGuest}
+            </span>
+            <span className="text-slate-400 block text-[11px]">
+              {guestEmail || 'Registered Guest'}
+            </span>
+          </div>
+        </div>
+
+        {/* Total Price & Payment Summary */}
+        <div className="pt-4 border-t border-stone-100 flex items-center justify-between">
+          <div>
+            <span className="text-xs text-slate-400 block">Total Paid (Sandbox)</span>
+            <span className="text-2xl font-extrabold text-black">
+              {totalAmount != null ? `${currency} ${Number(totalAmount).toLocaleString()}` : 'Paid'}
+            </span>
+          </div>
+
+          <button
+            onClick={() => window.print()}
+            className="text-xs font-semibold bg-stone-100 hover:bg-stone-200 text-black px-4 py-2.5 rounded-md border border-stone-300 transition cursor-pointer"
+          >
+            Print Receipt
+          </button>
+        </div>
+      </div>
+
+      {/* Guest registration prompt */}
+      {!isAuthenticated && guestEmail && (
+        <div className="bg-stone-50 border border-stone-200 rounded-lg p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="space-y-1 text-center sm:text-left">
+            <h4 className="font-bold text-black text-sm">Save your details for future bookings</h4>
+            <p className="text-xs text-slate-600">
+              Create an account with <strong>{guestEmail}</strong> to view your full itinerary history.
+            </p>
+          </div>
+          <Link
+            to={`/register?email=${encodeURIComponent(guestEmail)}`}
+            style={{ backgroundColor: '#254546', color: '#fefae0' }}
+            className="text-xs font-semibold px-5 py-2.5 rounded-md shrink-0 transition hover:opacity-90"
+          >
+            Create Account
+          </Link>
+        </div>
+      )}
+
+      {/* Navigation options */}
+      <div className="flex justify-center space-x-6 pt-4 text-xs font-semibold">
+        <Link
+          to="/"
+          style={{ color: '#254546' }}
+          className="hover:underline transition"
+        >
+          &larr; Book another stay
+        </Link>
+        {isAuthenticated && (
+          <>
+            <span className="text-slate-300">&bull;</span>
+            <Link
+              to="/my-bookings"
+              className="text-slate-600 hover:text-black transition"
+            >
+              View My Bookings &rarr;
+            </Link>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
