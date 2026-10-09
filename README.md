@@ -1,7 +1,14 @@
-# BookLodge — Backend
+# BookLodge
 
-REST API for BookLodge, a hotel booking platform. Accounts, search, booking and cancellation are
-served here. Hotel inventory, rates and payment come from [LiteAPI](https://docs.liteapi.travel).
+A hotel booking platform in two applications: an Express REST API in `backend/` and a React client
+in `frontend/`. Accounts, search, booking and cancellation are served by the API; the client is what
+a customer actually uses. Hotel inventory, rates and payment come from
+[LiteAPI](https://docs.liteapi.travel).
+
+| Directory | What it is |
+| --- | --- |
+| `backend/` | the REST API — contracts, provider adapter and tests |
+| `frontend/` | the React single-page client — see [Frontend](#frontend) |
 
 **LiteAPI provides** hotel data, room rates and pricing, availability re-checked at prebook, the
 customer payment flow, and the reservation itself.
@@ -13,12 +20,18 @@ it is not itself the hotel reservation.
 
 ## Stack
 
-Express 5 (CommonJS) · Mongoose 9 / MongoDB · Zod 4 for validation · JWT (jsonwebtoken) · bcrypt ·
-axios · express-rate-limit · Vitest 5.
+**Backend** — Express 5 (CommonJS) · Mongoose 9 / MongoDB · Zod 4 for validation · JWT
+(jsonwebtoken) · bcrypt · axios · express-rate-limit · Vitest 5.
 
-Node 22.12 or newer — that is Vitest's floor; the runtime itself needs 20.19.
+**Frontend** — React 19 · Vite 8 · React Router 7 · Tailwind CSS 4 · axios · date-fns ·
+react-hot-toast · lucide-react · oxlint.
+
+Node 22.12 or newer — that is Vitest's floor; the runtime itself needs 20.19. The frontend needs
+Node 20.19 or newer, for Vite.
 
 ## Getting started
+
+### Backend
 
 ```bash
 cd backend
@@ -32,7 +45,7 @@ unreachable it exits with code 1 rather than serving requests that would all fai
 `SIGINT`/`SIGTERM` stops accepting connections, lets in-flight requests finish, closes the
 database, and force-exits if that takes more than 10 seconds.
 
-### Configuration
+#### Configuration
 
 `src/config/env.js` validates every variable at boot and exits with a list of what is wrong. It is
 the only module that reads `process.env`.
@@ -54,6 +67,54 @@ be in `process.env`; a missing `.env` is treated as production.
 
 Neither file is committed. `.env.test` holds live sandbox credentials and needs the same variables
 as `.env`.
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+cp .env.example .env      # then set VITE_API_BASE_URL
+npm run dev
+```
+
+A single-page app covering search, hotel and room offers, checkout, the confirmation voucher,
+booking history, the member account pages and an admin portal. It shares no code with the backend:
+the two talk over HTTP only, through one module per backend domain in `src/services/`.
+
+`npm run build` writes `dist/`. `npm run lint` runs oxlint, and is the frontend's only automated
+check — there is no frontend test suite.
+
+#### Configuration
+
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `VITE_API_BASE_URL` | **yes** | the API's base URL, e.g. `http://localhost:5000/api` |
+| `VITE_USE_MOCK` | no | `true` answers every service from `src/mocks/` and never touches the network |
+| `VITE_LITEAPI_STRIPE_PUBLIC_KEY` | no | the Stripe key used to confirm the payment intent at checkout; falls back to a sandbox key in code |
+| `VITE_GOOGLE_PLACES_KEY` | no | declared in `.env.example`, but nothing currently reads it |
+
+Vite has no port configured, so `npm run dev` serves on its own default (5173). The origin must
+match the backend's `FRONTEND_URL`, or CORS refuses every call. `src/services/api.js` keeps a
+fallback base URL pointing at port 3000, which is stale — set `VITE_API_BASE_URL` rather than
+relying on it.
+
+Because Vite inlines `import.meta.env` at build time, `VITE_API_BASE_URL` has to be set in the
+*build* environment on the host; setting it afterwards changes nothing.
+
+#### How the client talks to the API
+
+- **Envelope.** A response interceptor returns the JSON body itself, so a service reads the payload
+  from `res.data` and never touches the `{ success, message, data }` wrapper. It only rejects on a
+  non-2xx status; a `success: false` body arriving with a 2xx would not be caught here.
+- **Failure shape.** Rejections are normalised into an `Error` carrying the server's `message`, plus
+  `status`, `ambiguous` and `provider` when the server supplied them — enough for the frontend to
+  behave correctly on an ambiguous booking.
+- **Token.** A request interceptor attaches `Bearer` from the token in `localStorage`, and a `401`
+  clears the stored token and user.
+- **Mock mode.** `VITE_USE_MOCK=true` makes every service answer from hand-written fixtures in
+  `src/mocks/`, so the UI runs with no backend at all. Those fixtures have not kept pace with the
+  API — the hotel-details fixture has no `photos` or `rooms`, for one — so mock mode is not a
+  reliable preview of the live contract.
 
 ## How a booking works
 
@@ -123,7 +184,7 @@ sense of becomes a `502` rather than something half-parsed reaching a controller
 ## Layout
 
 ```
-backend/
+backend/                  the REST API
 ├── src/
 │   ├── config/       env validation, the single MongoDB connection
 │   ├── routes/       one router per domain, mounted under /api
@@ -144,6 +205,17 @@ backend/
 │   └── e2e/          live provider and database, opt-in booking
 ├── vitest.config.js
 └── vitest.e2e.config.js
+
+frontend/                 the React client
+├── public/_redirects   SPA fallback for static hosting
+└── src/
+    ├── components/     booking, hotel and shared UI
+    ├── context/        auth and booking state
+    ├── hooks/          useCountdown
+    ├── mocks/          fixtures served when VITE_USE_MOCK=true
+    ├── pages/          one per route, public and protected
+    ├── routes/         AppRoutes, ProtectedRoute, AdminRoute
+    └── services/       one module per backend domain, over a shared api.js
 ```
 
 ## API reference
@@ -159,7 +231,7 @@ Base URL `/api`. Every response uses the shape in the next section.
 | `/users/:id` | GET | Bearer, admin | — | 200 `{ user }` |
 | `/locations/search` | GET | — | `?query=` | 200 `{ locations }` |
 | `/hotels/search` | POST | — | stay criteria + `placeId` | 200 `{ hotels }` |
-| `/hotels/:hotelId/details` | POST | — | stay criteria | 200 `{ hotel, rates }` |
+| `/hotels/:hotelId/details` | POST | — | stay criteria | 200 hotel + `photos`, `rooms`, `rates` |
 | `/bookings/prebook` | POST | Bearer | `{ offerId }` | 200 `{ prebook, … }` |
 | `/bookings` | POST | Bearer | `{ prebookId, holder, guests }` | 201 `{ booking }` |
 | `/bookings/my-bookings` | GET | Bearer | `?page=&limit=` | 200 `{ bookings, total, page, limit }` |
@@ -182,7 +254,8 @@ Base URL `/api`. Every response uses the shape in the next section.
 `checkin` and `checkout` are ISO dates (`YYYY-MM-DD`); `children` holds ages. `placeId` comes from
 `/locations/search` and is required by search but not by details.
 
-**Details** returns the hotel plus every rate for the dates. Each rate is the input to prebook:
+**Details** returns the hotel, its gallery, its room catalogue and every rate for the dates. Each
+rate is the input to prebook:
 
 ```json
 {
@@ -190,6 +263,22 @@ Base URL `/api`. Every response uses the shape in the next section.
   "name": "…",
   "description": "…",
   "photo": "…",
+  "photos": [
+    { "url": "…", "caption": "…", "hd_url": "…", "mainPhoto": true }
+  ],
+  "rooms": [
+    {
+      "id": 501,
+      "name": "Classic Room",
+      "description": "…",
+      "maxOccupancy": 2,
+      "bedType": "1 King Bed",
+      "amenities": ["Balcony", "Coffee Machine"],
+      "photos": [
+        { "url": "…", "imageDescription": "…", "hd_url": "…", "mainPhoto": true }
+      ]
+    }
+  ],
   "address": "…",
   "city": "…",
   "country": "…",
@@ -211,6 +300,13 @@ Base URL `/api`. Every response uses the shape in the next section.
   ]
 }
 ```
+
+`photo` is the single main image and `photos` the gallery; entries are objects, so the display URL
+is `.url` and the large one `.hd_url` when the provider supplies it. `rooms` comes from the hotel
+record while `rates` comes from a separate rates lookup, so **the two are not joined**: match
+`rates[].roomName` to `rooms[].name` to give each offer its own pictures and room details, and fall
+back to the gallery when nothing matches. `rooms`, `amenities` and each room's `photos` are always
+arrays, possibly empty; `bedType`, `maxOccupancy` and `description` are optional and may be absent.
 
 **Search** returns each hotel with only its cheapest rate, under `startingRate`. LiteAPI returns
 rates cheapest-first and the list is passed through as it comes — there is no pagination.
@@ -342,7 +438,7 @@ npm test           # unit + integration
 npm run test:e2e   # live LiteAPI sandbox + test database
 ```
 
-`npm test` runs 19 files / 297 tests. Unit tests cover the adapter, mappers, retry policy, auth and
+`npm test` runs 20 files / 303 tests. Unit tests cover the adapter, mappers, retry policy, auth and
 validation; integration tests boot the app and call it over HTTP with the provider mocked at the
 `liteApiService` boundary, so no network is involved. `.env.test` must exist, because environment
 validation runs at import — but no database is touched.
@@ -360,6 +456,9 @@ Test files load source modules through `createRequire`. The source is CommonJS a
 ESM, and going through Node keeps one instance of each module, which is what makes `instanceof`
 checks hold across that boundary.
 
+Both commands run from `backend/` and cover the backend only. The frontend carries no test suite;
+`npm run lint` is the whole of its automated checking.
+
 ## Not built yet
 
 So that nothing above is mistaken for a promise — these are the gaps as the code stands:
@@ -373,3 +472,12 @@ So that nothing above is mistaken for a promise — these are the gaps as the co
 - **Search pagination.** The provider returns rates cheapest-first and the list is passed through.
 - **Duplicate recovery for code 4005.** A duplicate reference is reported, not resolved back into the
   existing booking.
+- **The admin API.** The client's admin portal calls `/api/admin/*`, which the backend does not
+  serve: `routes/index.js` has `/admin` commented out, and `adminRoutes.js` and `adminController.js`
+  are both empty. Those pages run on mock data only.
+- **Booking lookup by reference.** The client's lookup page expects a reference-plus-email flow
+  through a `bookingService.lookupBooking`, and no route backs it. Cancelling from that page also
+  reads a `booking` object where the endpoint returns a flat result.
+- **Room photos on the hotel page.** The details call now returns `photos` and `rooms`, but the
+  client still builds its room cards from `rates` alone and shows the single hotel image on every
+  one of them.

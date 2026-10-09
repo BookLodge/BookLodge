@@ -21,6 +21,51 @@ const mapRates = (entry) => {
   return rates;
 };
 
+// hotelImages use urlHd/defaultImage; room photos use hd_url/mainPhoto.
+const mapPhoto = (photo) => {
+  const mainPhoto = photo.mainPhoto ?? photo.defaultImage;
+  const hdUrl = photo.hd_url ?? photo.urlHd;
+
+  return {
+    url: photo.url,
+    ...(photo.caption !== undefined && { caption: photo.caption }),
+    ...(photo.imageDescription !== undefined && { imageDescription: photo.imageDescription }),
+    ...(mainPhoto !== undefined && { mainPhoto }),
+    ...(hdUrl !== undefined && { hd_url: hdUrl }),
+  };
+};
+
+const toNumber = (value) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : undefined;
+};
+
+const describeBeds = (bedTypes) => {
+  const described = (bedTypes ?? [])
+    .map((bed) => [bed.quantity, bed.bedType ?? bed.bedSize].filter(Boolean).join(" "))
+    .filter(Boolean);
+
+  return described.length > 0 ? described.join(" + ") : undefined;
+};
+
+const mapRoom = (room) => {
+  const maxOccupancy = toNumber(room.maxOccupancy) ?? toNumber(room.maxAdults);
+  const bedType = describeBeds(room.bedTypes);
+  const amenities = (room.roomAmenities ?? [])
+    .map((amenity) => (amenity.name == null ? "" : String(amenity.name)))
+    .filter(Boolean);
+
+  return {
+    ...(room.id !== undefined && { id: room.id }),
+    name: room.roomName ?? room.name ?? "Room",
+    ...(room.description !== undefined && { description: room.description }),
+    ...(maxOccupancy !== undefined && { maxOccupancy }),
+    ...(bedType !== undefined && { bedType }),
+    amenities,
+    photos: (room.photos ?? []).map(mapPhoto),
+  };
+};
+
 const mapHotelDetailsResponse = (hotelDetailsResponse, hotelRatesResponse) => {
   const { data } = hotelDetailsResponse;
   const ratesEntry = hotelRatesResponse.data.find((entry) => entry.hotelId === data.id);
@@ -30,6 +75,8 @@ const mapHotelDetailsResponse = (hotelDetailsResponse, hotelRatesResponse) => {
     name: data.name,
     description: data.hotelDescription,
     photo: data.main_photo,
+    photos: (data.hotelImages ?? []).map(mapPhoto),
+    rooms: (data.rooms ?? []).map(mapRoom),
     address: data.address,
     city: data.city,
     country: data.country,
