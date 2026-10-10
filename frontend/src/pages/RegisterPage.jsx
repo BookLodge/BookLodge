@@ -80,7 +80,7 @@ export const RegisterPage = () => {
           Create an Account
         </h1>
         <p className="text-xs text-slate-500">
-          Book faster, view itinerary history, and enjoy member benefits with BookLodge
+          Book faster, view itinerary history, and enjoy member benefits with BookLodge.
         </p>
       </div>
 
