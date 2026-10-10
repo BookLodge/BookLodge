@@ -1,5 +1,3 @@
-﻿import { USE_MOCK } from './api';
-
 const LITEAPI_STRIPE_PUBLIC_KEY =
   import.meta.env.VITE_LITEAPI_STRIPE_PUBLIC_KEY ||
   'pk_test_51OyYnVA4FXPoRk9YJECd2jJmfprI2inRzqbt5Brk7R41kKIaftBnO8rCetwEVUdfR5WSsLorvNQ0tr4dDcFk8pof002p27EYzN';
@@ -15,11 +13,6 @@ export const paymentService = {
    * @returns {Promise<Object>} Confirmed Stripe PaymentIntent
    */
   async confirmPaymentIntent({ secretKey, cardDetails }) {
-    if (USE_MOCK) {
-      await new Promise((r) => setTimeout(r, 600));
-      return { status: 'succeeded' };
-    }
-
     if (!secretKey) {
       throw new Error('PaymentIntent secret key is required');
     }
@@ -45,16 +38,16 @@ export const paymentService = {
       if (parts[0]) params.append('payment_method_data[card][exp_month]', parts[0].trim());
       if (parts[1]) {
         const yr = parts[1].trim();
-        params.append('payment_method_data[card][exp_year]', yr.length === 2 ? `20${yr}` : yr);
+        params.append('payment_method_data[card][exp_year]', yr.length === 2 ? ('20' + yr) : yr);
       }
       if (cardDetails?.cvv) params.append('payment_method_data[card][cvc]', cardDetails.cvv.trim());
       if (cardDetails?.cardHolder) params.append('payment_method_data[billing_details][name]', cardDetails.cardHolder.trim());
     }
 
-    const res = await fetch(`https://api.stripe.com/v1/payment_intents/${piId}/confirm`, {
+    const res = await fetch('https://api.stripe.com/v1/payment_intents/' + piId + '/confirm', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${LITEAPI_STRIPE_PUBLIC_KEY}`,
+        Authorization: 'Bearer ' + LITEAPI_STRIPE_PUBLIC_KEY,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: params.toString(),
@@ -63,7 +56,6 @@ export const paymentService = {
     const data = await res.json();
 
     if (data.error) {
-      // If Stripe says it has already succeeded / been confirmed previously, treat as authorized
       if (
         data.error.message?.includes('already succeeded') ||
         data.error.payment_intent?.status === 'requires_capture' ||
@@ -77,7 +69,7 @@ export const paymentService = {
 
     const validStatuses = ['succeeded', 'requires_capture'];
     if (!validStatuses.includes(data.status)) {
-      throw new Error(`Payment incomplete: status is ${data.status}`);
+      throw new Error('Payment incomplete: status is ' + data.status);
     }
 
     return data;

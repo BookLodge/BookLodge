@@ -33,9 +33,14 @@ export const RoomOfferCard = ({ room, nights = 1, onSelect }) => {
       <div className="relative md:w-80 h-56 md:h-auto bg-stone-100 overflow-hidden shrink-0 group">
         <img
           src={photos[photoIndex] || room.image}
-          alt={`${room.name} - Photo ${photoIndex + 1}`}
+          alt={room.name + " - Photo " + (photoIndex + 1)}
           className="w-full h-full object-cover transition duration-300"
           loading="lazy"
+          onError={(e) => {
+            if (room.image && e.target.src !== room.image) {
+              e.target.src = room.image;
+            }
+          }}
         />
 
         {/* Multi-photo controls (only rendered if room has multiple photos) */}
@@ -71,9 +76,7 @@ export const RoomOfferCard = ({ room, nights = 1, onSelect }) => {
               {photos.slice(0, 6).map((_, idx) => (
                 <span
                   key={idx}
-                  className={`w-1.5 h-1.5 rounded-full transition-all ${
-                    photoIndex === idx ? "bg-white scale-125" : "bg-white/50"
-                  }`}
+                  className={"w-1.5 h-1.5 rounded-full transition-all " + (photoIndex === idx ? "bg-white scale-125" : "bg-white/50")}
                 />
               ))}
               {photos.length > 6 && (
@@ -99,7 +102,7 @@ export const RoomOfferCard = ({ room, nights = 1, onSelect }) => {
 
           <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 mb-3">
             <span>Up to {room.maxOccupancy} Guests</span>
-            <span>·</span>
+            <span className="text-slate-300">•</span>
             <span>{room.bedType}</span>
           </div>
 

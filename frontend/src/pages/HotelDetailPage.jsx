@@ -6,6 +6,33 @@ import { RoomOfferCard } from "../components/hotel/RoomOfferCard";
 import { SkeletonRoomCard } from "../components/common/SkeletonCard";
 import { differenceInCalendarDays, parseISO } from "date-fns";
 
+const matchRoomCatalog = (rateName, roomCatalog = []) => {
+  if (!rateName || !roomCatalog.length) return null;
+  const cleanRate = rateName.toLowerCase().replace(/[^a-z0-9]/g, "");
+  
+  // Exact or containment match
+  const direct = roomCatalog.find((r) => {
+    const cleanR = (r.name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    return cleanRate.includes(cleanR) || cleanR.includes(cleanRate);
+  });
+  if (direct) return direct;
+
+  // Keyword match
+  const keywords = [
+    "suite", "apartment", "deluxe", "superior", "executive",
+    "standard", "double", "single", "twin", "family", "king",
+    "queen", "studio", "villa", "penthouse", "bungalow", "cottage"
+  ];
+  for (const kw of keywords) {
+    if (cleanRate.includes(kw)) {
+      const match = roomCatalog.find((r) => (r.name || "").toLowerCase().includes(kw));
+      if (match) return match;
+    }
+  }
+
+  return roomCatalog[0] || null;
+};
+
 export const HotelDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -14,6 +41,8 @@ export const HotelDetailPage = () => {
   const [hotel, setHotel] = useState(null);
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
 
   const nights = Math.max(
     1,
@@ -27,7 +56,8 @@ export const HotelDetailPage = () => {
         const res = await hotelService.getHotelDetails(id, {
           checkIn: searchParams.checkIn,
           checkOut: searchParams.checkOut,
-          guests: searchParams.guests
+          guests: searchParams.guests,
+          currency: searchParams.currency || "USD"
         });
 
         const hotelData = res.data;
@@ -42,8 +72,21 @@ export const HotelDetailPage = () => {
           .replace(/\s+/g, " ")
           .trim();
 
+        // Extract normalized hotel photo URLs
+        const allHotelPhotos = (hotelData.photos || [])
+          .map((p) => (typeof p === "string" ? p : p?.url || p?.hd_url))
+          .filter(Boolean);
+
+        if (hotelData.photo && !allHotelPhotos.includes(hotelData.photo)) {
+          allHotelPhotos.unshift(hotelData.photo);
+        }
+
+        const fallbackPhoto = allHotelPhotos[0] || hotelData.photo || "/placeholder-hotel.jpg";
+
         setHotel({
           ...hotelData,
+          photo: fallbackPhoto,
+          photos: allHotelPhotos.length > 0 ? allHotelPhotos : [fallbackPhoto],
           description: cleanDesc
         });
 
@@ -57,21 +100,39 @@ export const HotelDetailPage = () => {
           }
         });
 
-        const formattedRooms = Array.from(ratesMap.values()).map((r, idx) => ({
-          id: r.offerId || `room_${idx}`,
-          offerId: r.offerId,
-          name: r.roomName,
-          boardType: r.boardName,
-          image: hotelData.photo,
-          cancellationPolicy: r.refundable ? "Free Cancellation" : "Non-Refundable",
-          isRefundable: r.refundable,
-          totalPrice: Math.round(r.amount),
-          pricePerNight: Math.max(1, Math.round(r.amount / nights)),
-          currency: r.currency || "USD",
-          maxOccupancy: r.occupancyNumber || searchParams.guests || 2,
-          bedType: "Standard Room Setup",
-          amenities: ["Free Wi-Fi", "Private Bathroom", "Climate Control"]
-        }));
+        const catalogRooms = hotelData.rooms || [];
+
+        const formattedRooms = Array.from(ratesMap.values()).map((r, idx) => {
+          const matchedCatalogRoom = matchRoomCatalog(r.roomName, catalogRooms);
+
+          // Extract specific room photos if available
+          const specificRoomPhotos = (matchedCatalogRoom?.photos || [])
+            .map((p) => (typeof p === "string" ? p : p?.url || p?.hd_url))
+            .filter(Boolean);
+
+          const finalRoomPhotos = specificRoomPhotos.length > 0
+            ? specificRoomPhotos
+            : (allHotelPhotos.length > 0 ? allHotelPhotos.slice(0, 4) : [fallbackPhoto]);
+
+          return {
+            id: r.offerId || ('room_' + idx),
+            offerId: r.offerId,
+            name: r.roomName,
+            boardType: r.boardName,
+            image: finalRoomPhotos[0] || fallbackPhoto,
+            photos: finalRoomPhotos,
+            cancellationPolicy: r.refundable ? "Free Cancellation" : "Non-Refundable",
+            isRefundable: r.refundable,
+            totalPrice: Math.round(r.amount),
+            pricePerNight: Math.max(1, Math.round(r.amount / nights)),
+            currency: r.currency || "USD",
+            maxOccupancy: matchedCatalogRoom?.maxOccupancy || r.occupancyNumber || searchParams.guests || 2,
+            bedType: matchedCatalogRoom?.bedType || "Standard Room Setup",
+            amenities: matchedCatalogRoom?.amenities && matchedCatalogRoom.amenities.length > 0
+              ? matchedCatalogRoom.amenities
+              : ["Free Wi-Fi", "Private Bathroom", "Climate Control"]
+          };
+        });
 
         setRooms(formattedRooms);
       } catch (err) {
@@ -82,11 +143,16 @@ export const HotelDetailPage = () => {
     };
 
     fetchHotelDetails();
-  }, [id, searchParams.checkIn, searchParams.checkOut, searchParams.guests, nights]);
+  }, [id, searchParams.checkIn, searchParams.checkOut, searchParams.guests, searchParams.currency, nights]);
 
   const handleSelectRoom = (room) => {
     selectOffer(hotel, room);
     navigate("/checkout");
+  };
+
+  const openGalleryAt = (index) => {
+    setGalleryIndex(index);
+    setGalleryOpen(true);
   };
 
   if (loading) {
@@ -105,13 +171,15 @@ export const HotelDetailPage = () => {
         <h2 className="text-xl font-bold text-slate-800">Hotel Not Found</h2>
         <button
           onClick={() => navigate("/search")}
-          className="mt-4 bg-[#254546] text-white text-xs font-semibold px-4 py-2 rounded-md cursor-pointer"
+          className="mt-4 bg-[#254546] text-white text-xs font-semibold px-4 py-2 rounded-md cursor-pointer hover:opacity-90 transition"
         >
           Return to Search
         </button>
       </div>
     );
   }
+
+  const galleryPhotos = hotel.photos || [hotel.photo];
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -128,7 +196,7 @@ export const HotelDetailPage = () => {
         <div>
           <div className="flex items-center space-x-2 mb-2">
             <span className="bg-slate-900 text-white text-xs font-bold px-2.5 py-1 rounded-md">
-              {hotel.rating} Star Luxury
+              {hotel.rating || 4} Star
             </span>
             <span className="bg-stone-50 text-[#254546] text-xs font-semibold px-2.5 py-1 rounded-md border border-stone-200">
               {hotel.city}, {hotel.country}
@@ -155,14 +223,135 @@ export const HotelDetailPage = () => {
         </div>
       </div>
 
-      {/* Photo Hero */}
-      <div className="h-96 w-full rounded-lg overflow-hidden border border-stone-200 bg-slate-100 shadow-xs">
-        <img
-          src={hotel.photo}
-          alt={hotel.name}
-          className="w-full h-full object-cover"
-        />
+      {/* Photo Hero Mosaic Gallery */}
+      <div className="relative rounded-xl overflow-hidden border border-stone-200 bg-slate-100 shadow-xs">
+        {galleryPhotos.length >= 5 ? (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-2 h-96 md:h-[420px]">
+            {/* Main large photo */}
+            <div
+              className="md:col-span-2 md:row-span-2 relative cursor-pointer overflow-hidden group"
+              onClick={() => openGalleryAt(0)}
+            >
+              <img
+                src={galleryPhotos[0]}
+                alt={hotel.name + " - Main"}
+                className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+              />
+            </div>
+            {/* 4 side thumbnail photos */}
+            {galleryPhotos.slice(1, 5).map((photoUrl, idx) => (
+              <div
+                key={idx}
+                className="hidden md:block relative cursor-pointer overflow-hidden group"
+                onClick={() => openGalleryAt(idx + 1)}
+              >
+                <img
+                  src={photoUrl}
+                  alt={hotel.name + " - " + (idx + 2)}
+                  className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                />
+              </div>
+            ))}
+          </div>
+        ) : galleryPhotos.length > 1 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 h-96">
+            <div
+              className="relative cursor-pointer overflow-hidden group"
+              onClick={() => openGalleryAt(0)}
+            >
+              <img
+                src={galleryPhotos[0]}
+                alt={hotel.name + " - 1"}
+                className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+              />
+            </div>
+            <div
+              className="hidden md:block relative cursor-pointer overflow-hidden group"
+              onClick={() => openGalleryAt(1)}
+            >
+              <img
+                src={galleryPhotos[1]}
+                alt={hotel.name + " - 2"}
+                className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="h-96 w-full">
+            <img
+              src={galleryPhotos[0]}
+              alt={hotel.name}
+              className="w-full h-full object-cover"
+            />
+          </div>
+        )}
+
+        {/* Show all photos button */}
+        {galleryPhotos.length > 1 && (
+          <button
+            type="button"
+            onClick={() => openGalleryAt(0)}
+            className="absolute bottom-4 right-4 bg-white/95 hover:bg-white text-slate-800 text-xs font-bold px-3.5 py-2 rounded-lg shadow-md border border-stone-200 flex items-center space-x-1.5 transition cursor-pointer backdrop-blur-xs"
+          >
+            <span>Show all {galleryPhotos.length} photos</span>
+          </button>
+        )}
       </div>
+
+      {/* Fullscreen Photo Modal */}
+      {galleryOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4 backdrop-blur-sm"
+          onClick={() => setGalleryOpen(false)}
+        >
+          <div
+            className="relative max-w-5xl w-full max-h-[85vh] flex flex-col items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setGalleryOpen(false)}
+              aria-label="Close modal"
+              className="absolute -top-10 right-0 text-white text-2xl font-bold hover:text-slate-300 transition cursor-pointer"
+            >
+              &times;
+            </button>
+
+            <img
+              src={galleryPhotos[galleryIndex]}
+              alt={hotel.name + " - " + (galleryIndex + 1)}
+              className="max-h-[75vh] max-w-full object-contain rounded-lg"
+            />
+
+            {/* Navigation buttons */}
+            {galleryPhotos.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setGalleryIndex((prev) => (prev === 0 ? galleryPhotos.length - 1 : prev - 1))
+                  }
+                  className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/90 text-white w-10 h-10 rounded-full flex items-center justify-center text-xl cursor-pointer"
+                >
+                  &#8249;
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setGalleryIndex((prev) => (prev === galleryPhotos.length - 1 ? 0 : prev + 1))
+                  }
+                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/90 text-white w-10 h-10 rounded-full flex items-center justify-center text-xl cursor-pointer"
+                >
+                  &#8250;
+                </button>
+              </>
+            )}
+
+            <div className="mt-3 text-white text-xs font-semibold">
+              Photo {galleryIndex + 1} of {galleryPhotos.length}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Overview & Amenities */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-4 border-t border-stone-200">
