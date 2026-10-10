@@ -83,13 +83,24 @@ export const SearchResultsPage = () => {
   }, [city, placeId, checkIn, checkOut, guests]);
 
   const filteredHotels = hotels.filter((hotel) => {
+    // Star rating filter
+    if (filters.stars && filters.stars.length > 0) {
+      const ratingVal = Math.round(Number(hotel.rating || hotel.starRating || 0));
+      if (!filters.stars.includes(ratingVal)) return false;
+    }
+
+    // Max price per night filter
     const totalAmount = hotel.startingRate?.amount || 0;
     const perNight = Math.round(totalAmount / nights);
     if (filters.maxPrice && perNight > filters.maxPrice) return false;
+
+    // Breakfast included filter
     if (filters.breakfastOnly) {
-      const hasBreakfast = (hotel.startingRate?.boardName || '').toLowerCase().includes('breakfast');
+      const boardName = (hotel.startingRate?.boardName || '').toLowerCase();
+      const hasBreakfast = boardName.includes('breakfast') || boardName.includes('bed & breakfast') || boardName.includes('half board') || boardName.includes('full board') || boardName.includes('all inclusive');
       if (!hasBreakfast) return false;
     }
+
     return true;
   });
 
@@ -102,11 +113,11 @@ export const SearchResultsPage = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-4 border-t border-stone-200">
         <div>
           <h1 className="text-2xl font-bold text-black">
-            {city ? "Hotels in " + city : "Search for a destination"}
+            {city ? ("Hotels in " + city) : "Search for a destination"}
           </h1>
           <p className="text-xs text-slate-500 mt-1">
             {city
-              ? "Showing " + filteredHotels.length + " propert" + (filteredHotels.length === 1 ? "y" : "ies")
+              ? ("Showing " + filteredHotels.length + " propert" + (filteredHotels.length === 1 ? "y" : "ies"))
               : "Enter a city above and press Search to find hotels"}
           </p>
         </div>
@@ -126,6 +137,7 @@ export const SearchResultsPage = () => {
               filters={filters}
               onFilterChange={setFilters}
               onReset={handleResetFilters}
+              maxAvailablePrice={3000}
             />
           </div>
         </div>
@@ -150,7 +162,7 @@ export const SearchResultsPage = () => {
             <div className="bg-white rounded-lg border border-stone-200 p-12 text-center space-y-3 shadow-xs">
               <h3 className="text-base font-bold text-black">No properties matched your criteria</h3>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                Try widening your price range or searching a different city or dates.
+                Try widening your price range, selecting different star ratings, or searching another destination.
               </p>
               <button
                 onClick={handleResetFilters}

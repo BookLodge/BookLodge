@@ -1,23 +1,31 @@
 import React from "react";
 
 export const FilterSidebar = ({ filters, onFilterChange, onReset, maxAvailablePrice = 2000 }) => {
+  const starOptions = [5, 4, 3, 2, 1];
+
   return (
     <div className="bg-white rounded-lg border border-stone-200 p-5 space-y-6 shadow-xs">
       <div className="flex items-center justify-between pb-3 border-b border-stone-100">
         <h4 className="font-bold text-black text-sm">Filter Results</h4>
-        <button onClick={onReset} className="text-xs text-slate-400 hover:text-black transition cursor-pointer">
+        <button
+          onClick={onReset}
+          className="text-xs text-slate-400 hover:text-black transition cursor-pointer"
+        >
           Reset
         </button>
       </div>
 
-      {/* Star Rating */}
+      {/* Star Rating Filter */}
       <div>
         <label className="block text-xs font-bold text-black uppercase tracking-wider mb-2">
           Hotel Rating
         </label>
         <div className="space-y-1.5">
-          {[5, 4, 3].map((star) => (
-            <label key={star} className="flex items-center space-x-2 text-xs text-slate-600 cursor-pointer p-1.5 rounded-md hover:bg-stone-50 transition">
+          {starOptions.map((star) => (
+            <label
+              key={star}
+              className="flex items-center space-x-2.5 text-xs text-slate-700 cursor-pointer p-1.5 rounded-md hover:bg-stone-50 transition"
+            >
               <input
                 type="checkbox"
                 checked={filters.stars.includes(star)}
@@ -27,49 +35,61 @@ export const FilterSidebar = ({ filters, onFilterChange, onReset, maxAvailablePr
                     : filters.stars.filter((s) => s !== star);
                   onFilterChange({ ...filters, stars: next });
                 }}
-                className="w-4 h-4 rounded"
+                className="w-4 h-4 rounded cursor-pointer"
                 style={{ accentColor: "#254546" }}
               />
-              <span>{"★".repeat(star)} {star} Stars</span>
+              <span className="flex items-center space-x-1">
+                <span className="text-amber-400 text-sm leading-none">
+                  {"★".repeat(star)}
+                </span>
+                <span className="font-medium text-slate-600">
+                  {star} Star{star > 1 ? "s" : ""}
+                </span>
+              </span>
             </label>
           ))}
         </div>
       </div>
 
-      {/* Max Price Slider — USD */}
+      {/* Max Price Range Slider */}
       <div>
-        <div className="flex justify-between items-center mb-1">
+        <div className="flex justify-between items-center mb-2">
           <label className="block text-xs font-bold text-black uppercase tracking-wider">
             Max Price / Night
           </label>
-          <span className="text-xs font-bold" style={{ color: "#254546" }}>
-            ${Number(filters.maxPrice).toLocaleString()}
+          <span className="text-xs font-bold px-2 py-0.5 rounded bg-stone-100" style={{ color: "#254546" }}>
+            {"$" + Number(filters.maxPrice).toLocaleString()}
           </span>
         </div>
-        <input
-          type="range"
-          min={50}
-          max={maxAvailablePrice}
-          step={50}
-          value={filters.maxPrice}
-          onChange={(e) => onFilterChange({ ...filters, maxPrice: Number(e.target.value) })}
-          className="w-full h-1.5 rounded-lg appearance-none cursor-pointer"
-          style={{ accentColor: "#254546" }}
-        />
-        <div className="flex justify-between text-[11px] text-slate-400 mt-1">
+
+        {/* Visible Track Range Input */}
+        <div className="py-2">
+          <input
+            type="range"
+            min={50}
+            max={maxAvailablePrice}
+            step={25}
+            value={filters.maxPrice}
+            onChange={(e) => onFilterChange({ ...filters, maxPrice: Number(e.target.value) })}
+            className="w-full h-2 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-[#254546] border border-stone-300"
+            style={{ accentColor: "#254546" }}
+          />
+        </div>
+
+        <div className="flex justify-between text-[11px] text-slate-400 mt-1 font-medium">
           <span>$50</span>
-          <span>${maxAvailablePrice.toLocaleString()}</span>
+          <span>{"$" + maxAvailablePrice.toLocaleString()}</span>
         </div>
       </div>
 
-      {/* Breakfast filter */}
+      {/* Breakfast Included Filter */}
       <div className="pt-2 border-t border-stone-100">
-        <label className="flex items-center space-x-2 text-xs text-slate-700 cursor-pointer">
+        <label className="flex items-center space-x-2 text-xs text-slate-700 cursor-pointer p-1 rounded-md hover:bg-stone-50 transition">
           <input
             type="checkbox"
             checked={filters.breakfastOnly}
             onChange={(e) => onFilterChange({ ...filters, breakfastOnly: e.target.checked })}
-            className="w-4 h-4 rounded"
+            className="w-4 h-4 rounded cursor-pointer"
             style={{ accentColor: "#254546" }}
           />
           <span className="font-medium">Breakfast Included Deals</span>
