@@ -27,10 +27,15 @@ export const RoomOfferCard = ({ room, nights = 1, onSelect }) => {
     setPhotoIndex((prev) => (prev === photos.length - 1 ? 0 : prev + 1));
   };
 
+  const maxVisibleAmenities = 8;
+  const amenitiesList = room.amenities || [];
+  const visibleAmenities = amenitiesList.slice(0, maxVisibleAmenities);
+  const remainingCount = amenitiesList.length - maxVisibleAmenities;
+
   return (
-    <div className="bg-white rounded-lg border border-stone-200 overflow-hidden shadow-xs hover:border-[#254546]/40 transition flex flex-col md:flex-row">
-      {/* Specific Room Photo Carousel */}
-      <div className="relative md:w-80 h-56 md:h-auto bg-stone-100 overflow-hidden shrink-0 group">
+    <div className="bg-white rounded-lg border border-stone-200 overflow-hidden shadow-xs hover:border-[#254546]/40 transition flex flex-col md:flex-row md:items-stretch">
+      {/* Standardized Photo Carousel Column */}
+      <div className="relative md:w-72 lg:w-80 h-52 sm:h-56 md:h-auto min-h-[220px] max-h-[260px] md:max-h-none bg-stone-100 overflow-hidden shrink-0 group">
         <img
           src={photos[photoIndex] || room.image}
           alt={room.name + " - Photo " + (photoIndex + 1)}
@@ -87,20 +92,24 @@ export const RoomOfferCard = ({ room, nights = 1, onSelect }) => {
         )}
       </div>
 
-      {/* Room Details */}
-      <div className="p-6 flex-1 flex flex-col justify-between">
+      {/* Room Details Column */}
+      <div className="p-5 md:p-6 flex-1 flex flex-col justify-between">
         <div>
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-            <h3 className="text-lg font-bold text-black">{room.name}</h3>
+          {/* Title & Pinned Top-Right Badge */}
+          <div className="flex items-start justify-between gap-4 mb-2">
+            <h3 className="text-base sm:text-lg font-bold text-black leading-snug flex-1 min-w-0">
+              {room.name}
+            </h3>
             <span
               style={{ color: "#254546", backgroundColor: "#25454612", borderColor: "#25454630" }}
-              className="text-xs font-semibold px-2.5 py-1 rounded-md border"
+              className="text-xs font-semibold px-2.5 py-1 rounded-md border shrink-0 whitespace-nowrap self-start"
             >
               {room.boardType}
             </span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 mb-3">
+          {/* Occupancy & Bed */}
+          <div className="flex flex-wrap items-center gap-2.5 text-xs text-slate-600 mb-3">
             <span>Up to {room.maxOccupancy} Guests</span>
             <span className="text-slate-300">•</span>
             <span>{room.bedType}</span>
@@ -119,9 +128,9 @@ export const RoomOfferCard = ({ room, nights = 1, onSelect }) => {
             )}
           </div>
 
-          {/* Amenities */}
-          <div className="flex flex-wrap gap-1.5">
-            {(room.amenities || []).map((item, idx) => (
+          {/* Amenities (Capped at 8 with +more counter) */}
+          <div className="flex flex-wrap gap-1.5 items-center">
+            {visibleAmenities.map((item, idx) => (
               <span
                 key={idx}
                 className="text-[11px] bg-stone-50 text-slate-700 px-2 py-0.5 rounded-md border border-stone-200"
@@ -129,11 +138,16 @@ export const RoomOfferCard = ({ room, nights = 1, onSelect }) => {
                 {item}
               </span>
             ))}
+            {remainingCount > 0 && (
+              <span className="text-[11px] font-medium text-slate-500 bg-stone-100/80 px-2 py-0.5 rounded-md">
+                +{remainingCount} more
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Pricing & Selection */}
-        <div className="mt-6 pt-4 border-t border-stone-100 flex items-center justify-between">
+        {/* Pricing & Selection Footer */}
+        <div className="mt-5 pt-4 border-t border-stone-100 flex items-center justify-between">
           <div>
             <div className="text-xs text-slate-400">
               {nights} night{nights > 1 ? "s" : ""} total
