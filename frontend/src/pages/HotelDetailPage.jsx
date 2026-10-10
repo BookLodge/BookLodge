@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { hotelService } from "../services/hotelService";
 import { useBooking } from "../context/BookingContext";
 import { RoomOfferCard } from "../components/hotel/RoomOfferCard";
 import { SkeletonRoomCard } from "../components/common/SkeletonCard";
 import { differenceInCalendarDays, parseISO } from "date-fns";
+
+const ROOMS_PER_PAGE = 5;
 
 const matchRoomCatalog = (rateName, roomCatalog = []) => {
   if (!rateName || !roomCatalog.length) return null;
@@ -43,6 +45,9 @@ export const HotelDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const roomsSectionRef = useRef(null);
 
   const nights = Math.max(
     1,
@@ -52,6 +57,7 @@ export const HotelDetailPage = () => {
   useEffect(() => {
     const fetchHotelDetails = async () => {
       setLoading(true);
+      setCurrentPage(1);
       try {
         const res = await hotelService.getHotelDetails(id, {
           checkIn: searchParams.checkIn,
@@ -153,6 +159,19 @@ export const HotelDetailPage = () => {
   const openGalleryAt = (index) => {
     setGalleryIndex(index);
     setGalleryOpen(true);
+  };
+
+  const totalPages = Math.ceil(rooms.length / ROOMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ROOMS_PER_PAGE;
+  const endIndex = Math.min(startIndex + ROOMS_PER_PAGE, rooms.length);
+  const paginatedRooms = rooms.slice(startIndex, endIndex);
+
+  const handlePageChange = (newPage) => {
+    if (newPage < 1 || newPage > totalPages || newPage === currentPage) return;
+    setCurrentPage(newPage);
+    if (roomsSectionRef.current) {
+      roomsSectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   };
 
   if (loading) {
@@ -383,17 +402,25 @@ export const HotelDetailPage = () => {
       </div>
 
       {/* Room Offers Selection */}
-      <div className="pt-6 border-t border-stone-200 space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold text-black">Available Room Options</h2>
-          <p className="text-xs text-slate-500 mt-1">
-            Prices calculated for {nights} night{nights > 1 ? "s" : ""}, {searchParams.guests} guest{searchParams.guests > 1 ? "s" : ""}.
-          </p>
+      <div ref={roomsSectionRef} className="pt-6 border-t border-stone-200 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
+          <div>
+            <h2 className="text-2xl font-bold text-black">Available Room Options</h2>
+            <p className="text-xs text-slate-500 mt-1">
+              Prices calculated for {nights} night{nights > 1 ? "s" : ""}, {searchParams.guests} guest{searchParams.guests > 1 ? "s" : ""}.
+            </p>
+          </div>
+          {rooms.length > 0 && (
+            <span className="text-xs font-medium text-slate-500">
+              Showing {startIndex + 1}–{endIndex} of {rooms.length} rooms
+            </span>
+          )}
         </div>
 
+        {/* Room List */}
         <div className="space-y-4">
-          {rooms.length > 0 ? (
-            rooms.map((room) => (
+          {paginatedRooms.length > 0 ? (
+            paginatedRooms.map((room) => (
               <RoomOfferCard
                 key={room.offerId}
                 room={room}
@@ -405,6 +432,62 @@ export const HotelDetailPage = () => {
             <p className="text-sm text-slate-500 italic py-4">No available room rates found for these dates. Try different check-in dates.</p>
           )}
         </div>
+
+        {/* Room Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-stone-100">
+            <span className="text-xs text-slate-500">
+              Page {currentPage} of {totalPages}
+            </span>
+
+            <div className="flex items-center space-x-1.5">
+              {/* Prev button */}
+              <button
+                type="button"
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className={"px-3 py-1.5 text-xs font-semibold rounded-md border transition " + (
+                  currentPage === 1
+                    ? "text-slate-300 border-stone-200 cursor-not-allowed bg-stone-50"
+                    : "text-slate-700 border-stone-300 hover:bg-stone-50 cursor-pointer"
+                )}
+              >
+                &larr; Previous
+              </button>
+
+              {/* Page Number Pills */}
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                <button
+                  key={pageNum}
+                  type="button"
+                  onClick={() => handlePageChange(pageNum)}
+                  style={pageNum === currentPage ? { backgroundColor: "#254546", color: "#fefae0" } : {}}
+                  className={"w-8 h-8 text-xs font-bold rounded-md transition cursor-pointer " + (
+                    pageNum === currentPage
+                      ? "shadow-xs"
+                      : "text-slate-700 hover:bg-stone-100 border border-stone-200"
+                  )}
+                >
+                  {pageNum}
+                </button>
+              ))}
+
+              {/* Next button */}
+              <button
+                type="button"
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className={"px-3 py-1.5 text-xs font-semibold rounded-md border transition " + (
+                  currentPage === totalPages
+                    ? "text-slate-300 border-stone-200 cursor-not-allowed bg-stone-50"
+                    : "text-slate-700 border-stone-300 hover:bg-stone-50 cursor-pointer"
+                )}
+              >
+                Next &rarr;
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
