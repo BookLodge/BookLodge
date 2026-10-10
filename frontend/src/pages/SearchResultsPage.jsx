@@ -11,6 +11,20 @@ import { addDays, format, differenceInCalendarDays, parseISO } from "date-fns";
 const defaultCheckIn = format(addDays(new Date(), 1), "yyyy-MM-dd");
 const defaultCheckOut = format(addDays(new Date(), 4), "yyyy-MM-dd");
 
+// Maps 10-point review rating or 5-point star rating into 1-5 star brackets
+const getHotelStars = (rating) => {
+  const num = Number(rating);
+  if (!num || isNaN(num) || num <= 0) return 3;
+  if (num > 5) {
+    // 10-point scale: 9.0+ -> 5, 7.5-8.9 -> 4, 6.0-7.4 -> 3, <6.0 -> 2
+    if (num >= 9.0) return 5;
+    if (num >= 7.5) return 4;
+    if (num >= 6.0) return 3;
+    return 2;
+  }
+  return Math.max(1, Math.min(5, Math.round(num)));
+};
+
 export const SearchResultsPage = () => {
   const [searchParams] = useSearchParams();
   const { updateSearchParams } = useBooking();
@@ -83,10 +97,10 @@ export const SearchResultsPage = () => {
   }, [city, placeId, checkIn, checkOut, guests]);
 
   const filteredHotels = hotels.filter((hotel) => {
-    // Star rating filter
+    // Star rating filter (if selected)
     if (filters.stars && filters.stars.length > 0) {
-      const ratingVal = Math.round(Number(hotel.rating || hotel.starRating || 0));
-      if (!filters.stars.includes(ratingVal)) return false;
+      const hotelStars = getHotelStars(hotel.rating);
+      if (!filters.stars.includes(hotelStars)) return false;
     }
 
     // Max price per night filter

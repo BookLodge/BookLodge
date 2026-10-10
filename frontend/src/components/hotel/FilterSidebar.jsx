@@ -1,53 +1,62 @@
 import React from "react";
 
-export const FilterSidebar = ({ filters, onFilterChange, onReset, maxAvailablePrice = 2000 }) => {
-  const starOptions = [5, 4, 3, 2, 1];
+export const FilterSidebar = ({ filters, onFilterChange, onReset, maxAvailablePrice = 3000 }) => {
+  const starOptions = [
+    { stars: 5, label: "5 Stars (9.0+ Excellent)" },
+    { stars: 4, label: "4 Stars (7.5 - 8.9 Very Good)" },
+    { stars: 3, label: "3 Stars (6.0 - 7.4 Good)" },
+    { stars: 2, label: "2 Stars & below" }
+  ];
 
   return (
     <div className="bg-white rounded-lg border border-stone-200 p-5 space-y-6 shadow-xs">
       <div className="flex items-center justify-between pb-3 border-b border-stone-100">
         <h4 className="font-bold text-black text-sm">Filter Results</h4>
         <button
+          type="button"
           onClick={onReset}
-          className="text-xs text-slate-400 hover:text-black transition cursor-pointer"
+          className="text-xs text-slate-400 hover:text-black transition cursor-pointer font-medium"
         >
-          Reset
+          Reset All
         </button>
       </div>
 
       {/* Star Rating Filter */}
       <div>
         <label className="block text-xs font-bold text-black uppercase tracking-wider mb-2">
-          Hotel Rating
+          Rating & Category
         </label>
         <div className="space-y-1.5">
-          {starOptions.map((star) => (
-            <label
-              key={star}
-              className="flex items-center space-x-2.5 text-xs text-slate-700 cursor-pointer p-1.5 rounded-md hover:bg-stone-50 transition"
-            >
-              <input
-                type="checkbox"
-                checked={filters.stars.includes(star)}
-                onChange={(e) => {
-                  const next = e.target.checked
-                    ? [...filters.stars, star]
-                    : filters.stars.filter((s) => s !== star);
-                  onFilterChange({ ...filters, stars: next });
-                }}
-                className="w-4 h-4 rounded cursor-pointer"
-                style={{ accentColor: "#254546" }}
-              />
-              <span className="flex items-center space-x-1">
-                <span className="text-amber-400 text-sm leading-none">
-                  {"★".repeat(star)}
+          {starOptions.map(({ stars, label }) => {
+            const isChecked = filters.stars.includes(stars);
+            return (
+              <label
+                key={stars}
+                className="flex items-center space-x-2.5 text-xs text-slate-700 cursor-pointer p-1.5 rounded-md hover:bg-stone-50 transition"
+              >
+                <input
+                  type="checkbox"
+                  checked={isChecked}
+                  onChange={(e) => {
+                    const next = e.target.checked
+                      ? [...filters.stars, stars]
+                      : filters.stars.filter((s) => s !== stars);
+                    onFilterChange({ ...filters, stars: next });
+                  }}
+                  className="w-4 h-4 rounded cursor-pointer"
+                  style={{ accentColor: "#254546" }}
+                />
+                <span className="flex items-center space-x-1.5">
+                  <span className="text-amber-400 text-sm leading-none">
+                    {"★".repeat(stars)}
+                  </span>
+                  <span className="font-medium text-slate-600">
+                    {stars} Star{stars > 1 ? "s" : ""}
+                  </span>
                 </span>
-                <span className="font-medium text-slate-600">
-                  {star} Star{star > 1 ? "s" : ""}
-                </span>
-              </span>
-            </label>
-          ))}
+              </label>
+            );
+          })}
         </div>
       </div>
 
@@ -71,7 +80,7 @@ export const FilterSidebar = ({ filters, onFilterChange, onReset, maxAvailablePr
             step={25}
             value={filters.maxPrice}
             onChange={(e) => onFilterChange({ ...filters, maxPrice: Number(e.target.value) })}
-            className="w-full h-2 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-[#254546] border border-stone-300"
+            className="w-full h-2 bg-stone-200 rounded-lg appearance-none cursor-pointer border border-stone-300"
             style={{ accentColor: "#254546" }}
           />
         </div>
