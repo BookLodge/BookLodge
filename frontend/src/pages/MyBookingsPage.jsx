@@ -11,11 +11,18 @@ import { format, parseISO } from "date-fns";
 
 const BOOKINGS_PER_PAGE = 5;
 
+// Timezone-safe date formatting to prevent 1-day UTC rollback
 const formatDateSafe = (dateStr, formatPattern = "MMM d, yyyy") => {
   if (!dateStr) return "N/A";
   try {
+    const cleanStr = String(dateStr).split("T")[0];
+    const parts = cleanStr.split("-").map(Number);
+    if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+      const d = new Date(parts[0], parts[1] - 1, parts[2]);
+      return format(d, formatPattern);
+    }
     const d = typeof dateStr === "string" ? parseISO(dateStr) : new Date(dateStr);
-    if (isNaN(d.getTime())) return String(dateStr).split("T")[0];
+    if (isNaN(d.getTime())) return String(dateStr);
     return format(d, formatPattern);
   } catch {
     return String(dateStr).split("T")[0];
@@ -25,12 +32,15 @@ const formatDateSafe = (dateStr, formatPattern = "MMM d, yyyy") => {
 const isPastCheckIn = (checkinDateStr) => {
   if (!checkinDateStr) return false;
   try {
-    const checkin = typeof checkinDateStr === "string" ? parseISO(checkinDateStr) : new Date(checkinDateStr);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const checkinMidnight = new Date(checkin);
-    checkinMidnight.setHours(0, 0, 0, 0);
-    return checkinMidnight.getTime() <= today.getTime();
+    const cleanStr = String(checkinDateStr).split("T")[0];
+    const parts = cleanStr.split("-").map(Number);
+    if (parts.length === 3) {
+      const checkinDate = new Date(parts[0], parts[1] - 1, parts[2]);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return checkinDate.getTime() <= today.getTime();
+    }
+    return false;
   } catch {
     return false;
   }
