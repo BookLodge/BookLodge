@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBooking } from "../../context/BookingContext";
 import { hotelService } from "../../services/hotelService";
@@ -8,7 +8,7 @@ export const SearchWidget = ({ initialCompact = false }) => {
   const navigate = useNavigate();
   const { searchParams, updateSearchParams } = useBooking();
 
-  const [city, setCity] = useState(searchParams.city || "Lagos");
+  const [city, setCity] = useState(searchParams.city || "");
   const [placeId, setPlaceId] = useState(searchParams.placeId || "");
   const [checkIn, setCheckIn] = useState(searchParams.checkIn || format(addDays(new Date(), 1), "yyyy-MM-dd"));
   const [checkOut, setCheckOut] = useState(searchParams.checkOut || format(addDays(new Date(), 4), "yyyy-MM-dd"));
@@ -24,14 +24,10 @@ export const SearchWidget = ({ initialCompact = false }) => {
   const dropdownContainerRef = useRef(null);
   const todayStr = format(new Date(), "yyyy-MM-dd");
 
-  // Keep internal state in sync if searchParams changes from outside
+  // Keep internal state in sync if searchParams changes from outside (e.g. Logo click reset)
   useEffect(() => {
-    if (searchParams.city && searchParams.city !== city) {
-      setCity(searchParams.city);
-    }
-    if (searchParams.placeId !== undefined && searchParams.placeId !== placeId) {
-      setPlaceId(searchParams.placeId || "");
-    }
+    setCity(searchParams.city || "");
+    setPlaceId(searchParams.placeId || "");
     if (searchParams.checkIn) setCheckIn(searchParams.checkIn);
     if (searchParams.checkOut) setCheckOut(searchParams.checkOut);
     if (searchParams.guests) setGuests(searchParams.guests);
@@ -45,9 +41,6 @@ export const SearchWidget = ({ initialCompact = false }) => {
       return;
     }
 
-    // If placeId is already matched for this exact selection, don't re-query
-    if (placeId) return;
-
     const timer = setTimeout(async () => {
       setIsLoadingLocations(true);
       try {
@@ -56,19 +49,23 @@ export const SearchWidget = ({ initialCompact = false }) => {
         setSuggestions(locs);
         setIsDropdownOpen(locs.length > 0);
       } catch (err) {
-        console.warn("Location autocomplete error:", err);
+        console.error("Autocomplete search error", err);
+        setSuggestions([]);
       } finally {
         setIsLoadingLocations(false);
       }
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [city, placeId]);
+  }, [city]);
 
-  // Click outside to dismiss suggestions dropdown
+  // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (dropdownContainerRef.current && !dropdownContainerRef.current.contains(e.target)) {
+      if (
+        dropdownContainerRef.current &&
+        !dropdownContainerRef.current.contains(e.target)
+      ) {
         setIsDropdownOpen(false);
       }
     };
@@ -88,7 +85,7 @@ export const SearchWidget = ({ initialCompact = false }) => {
   };
 
   const handleSelectLocation = (loc) => {
-    const fullDisplayName = loc.address ? `${loc.name}, ${loc.address}` : loc.name;
+    const fullDisplayName = loc.address ? (loc.name + ", " + loc.address) : loc.name;
     setCity(fullDisplayName);
     setPlaceId(loc.placeId || "");
     setIsDropdownOpen(false);
@@ -128,7 +125,7 @@ export const SearchWidget = ({ initialCompact = false }) => {
     }
 
     updateSearchParams({ city, placeId, checkIn, checkOut, guests: Number(guests) });
-    const placeIdQuery = placeId ? "&placeId=" + encodeURIComponent(placeId) : "";
+    const placeIdQuery = placeId ? ("&placeId=" + encodeURIComponent(placeId)) : "";
     navigate(
       "/search?city=" +
         encodeURIComponent(city) +
@@ -192,11 +189,11 @@ export const SearchWidget = ({ initialCompact = false }) => {
                       type="button"
                       onClick={() => handleSelectLocation(loc)}
                       onMouseEnter={() => setSelectedIndex(idx)}
-                      className={`w-full text-left px-3.5 py-2.5 flex items-center space-x-2.5 transition cursor-pointer text-xs ${
+                      className={"w-full text-left px-3.5 py-2.5 flex items-center space-x-2.5 transition cursor-pointer text-xs " + (
                         isSelected
                           ? "bg-stone-100 text-black font-semibold"
                           : "text-slate-700 hover:bg-stone-50"
-                      }`}
+                      )}
                     >
                       <span className="text-slate-400 text-sm shrink-0">📍</span>
                       <div className="flex-1 truncate">
