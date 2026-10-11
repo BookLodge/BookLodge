@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+﻿import React, { useState, useEffect, useRef } from "react";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { hotelService } from "../services/hotelService";
 import { useBooking } from "../context/BookingContext";
 import { RoomOfferCard } from "../components/hotel/RoomOfferCard";
 import { SkeletonRoomCard } from "../components/common/SkeletonCard";
-import { differenceInCalendarDays, parseISO } from "date-fns";
+import { differenceInCalendarDays, parseISO, format, addDays } from "date-fns";
 
-const ROOMS_PER_PAGE = 5;
+const ROOMS_PER_PAGE = 10;
 
 const matchRoomCatalog = (rateName, roomCatalog = []) => {
   if (!rateName || !roomCatalog.length) return null;
@@ -37,8 +37,17 @@ const matchRoomCatalog = (rateName, roomCatalog = []) => {
 
 export const HotelDetailPage = () => {
   const { id } = useParams();
+  const [urlParams] = useSearchParams();
   const navigate = useNavigate();
   const { searchParams, selectOffer } = useBooking();
+
+  const tomorrowStr = format(addDays(new Date(), 1), "yyyy-MM-dd");
+  const defaultCheckoutStr = format(addDays(new Date(), 4), "yyyy-MM-dd");
+
+  const effectiveCheckIn = urlParams.get("checkIn") || searchParams.checkIn || tomorrowStr;
+  const effectiveCheckOut = urlParams.get("checkOut") || searchParams.checkOut || defaultCheckoutStr;
+  const effectiveGuests = Number(urlParams.get("guests")) || Number(searchParams.guests) || 2;
+  const effectiveCurrency = urlParams.get("currency") || searchParams.currency || "USD";
 
   const [hotel, setHotel] = useState(null);
   const [rooms, setRooms] = useState([]);
@@ -51,7 +60,7 @@ export const HotelDetailPage = () => {
 
   const nights = Math.max(
     1,
-    differenceInCalendarDays(parseISO(searchParams.checkOut), parseISO(searchParams.checkIn)) || 1
+    differenceInCalendarDays(parseISO(effectiveCheckOut), parseISO(effectiveCheckIn)) || 1
   );
 
   useEffect(() => {
@@ -60,10 +69,10 @@ export const HotelDetailPage = () => {
       setCurrentPage(1);
       try {
         const res = await hotelService.getHotelDetails(id, {
-          checkIn: searchParams.checkIn,
-          checkOut: searchParams.checkOut,
-          guests: searchParams.guests,
-          currency: searchParams.currency || "USD"
+          checkIn: effectiveCheckIn,
+          checkOut: effectiveCheckOut,
+          guests: effectiveGuests,
+          currency: effectiveCurrency
         });
 
         const hotelData = res.data;
@@ -132,7 +141,7 @@ export const HotelDetailPage = () => {
             totalPrice: Math.round(r.amount),
             pricePerNight: Math.max(1, Math.round(r.amount / nights)),
             currency: r.currency || "USD",
-            maxOccupancy: matchedCatalogRoom?.maxOccupancy || r.occupancyNumber || searchParams.guests || 2,
+            maxOccupancy: matchedCatalogRoom?.maxOccupancy || r.occupancyNumber || effectiveGuests || 2,
             bedType: matchedCatalogRoom?.bedType || "Standard Room Setup",
             amenities: matchedCatalogRoom?.amenities && matchedCatalogRoom.amenities.length > 0
               ? matchedCatalogRoom.amenities
@@ -149,7 +158,7 @@ export const HotelDetailPage = () => {
     };
 
     fetchHotelDetails();
-  }, [id, searchParams.checkIn, searchParams.checkOut, searchParams.guests, searchParams.currency, nights]);
+  }, [id, effectiveCheckIn, effectiveCheckOut, effectiveGuests, effectiveCurrency, nights]);
 
   const handleSelectRoom = (room) => {
     selectOffer(hotel, room);
@@ -234,10 +243,10 @@ export const HotelDetailPage = () => {
         {/* Selected Search Stay recap */}
         <div className="bg-stone-50 border border-stone-200 p-3.5 rounded-lg flex items-center gap-4 text-xs text-slate-700 self-start md:self-auto">
           <div className="flex items-center space-x-1.5 font-medium">
-            <span>{searchParams.checkIn} &rarr; {searchParams.checkOut} ({nights} night{nights > 1 ? "s" : ""})</span>
+            <span>{effectiveCheckIn} &rarr; {effectiveCheckOut} ({nights} night{nights > 1 ? "s" : ""})</span>
           </div>
           <div className="flex items-center space-x-1.5 font-medium">
-            <span>{searchParams.guests} Guest{searchParams.guests > 1 ? "s" : ""}</span>
+            <span>{effectiveGuests} Guest{effectiveGuests > 1 ? "s" : ""}</span>
           </div>
         </div>
       </div>
@@ -407,12 +416,12 @@ export const HotelDetailPage = () => {
           <div>
             <h2 className="text-2xl font-bold text-black">Available Room Options</h2>
             <p className="text-xs text-slate-500 mt-1">
-              Prices calculated for {nights} night{nights > 1 ? "s" : ""}, {searchParams.guests} guest{searchParams.guests > 1 ? "s" : ""}.
+              Prices calculated for {nights} night{nights > 1 ? "s" : ""}, {effectiveGuests} guest{effectiveGuests > 1 ? "s" : ""}.
             </p>
           </div>
           {rooms.length > 0 && (
             <span className="text-xs font-medium text-slate-500">
-              Showing {startIndex + 1}–{endIndex} of {rooms.length} rooms
+              Showing {startIndex + 1}â€“{endIndex} of {rooms.length} rooms
             </span>
           )}
         </div>

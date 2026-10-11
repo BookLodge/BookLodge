@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+﻿import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { hotelService } from "../services/hotelService";
 import { useBooking } from "../context/BookingContext";
@@ -10,7 +10,7 @@ import { addDays, format, differenceInCalendarDays, parseISO } from "date-fns";
 
 const defaultCheckIn = format(addDays(new Date(), 1), "yyyy-MM-dd");
 const defaultCheckOut = format(addDays(new Date(), 4), "yyyy-MM-dd");
-const HOTELS_PER_PAGE = 8;
+const HOTELS_PER_PAGE = 10;
 
 export const SearchResultsPage = () => {
   const [searchParams] = useSearchParams();
@@ -153,7 +153,7 @@ export const SearchResultsPage = () => {
           <p className="text-xs text-slate-500 mt-1">
             {city
               ? (filteredHotels.length > 0 
-                  ? "Showing " + (startIndex + 1) + "–" + endIndex + " of " + filteredHotels.length + " propert" + (filteredHotels.length === 1 ? "y" : "ies")
+                  ? "Showing " + (startIndex + 1) + "â€“" + endIndex + " of " + filteredHotels.length + " propert" + (filteredHotels.length === 1 ? "y" : "ies")
                   : "0 properties found")
               : "Enter a city above and press Search to find hotels"}
           </p>

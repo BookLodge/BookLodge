@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+﻿import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBooking } from "../../context/BookingContext";
 import { hotelService } from "../../services/hotelService";
@@ -21,16 +21,19 @@ export const SearchWidget = ({ initialCompact = false }) => {
   const [isLoadingLocations, setIsLoadingLocations] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
 
+  const isUserTyping = useRef(false);
   const dropdownContainerRef = useRef(null);
   const todayStr = format(new Date(), "yyyy-MM-dd");
 
   // Keep internal state in sync if searchParams changes from outside (e.g. Logo click reset)
   useEffect(() => {
+    isUserTyping.current = false;
     setCity(searchParams.city || "");
     setPlaceId(searchParams.placeId || "");
     if (searchParams.checkIn) setCheckIn(searchParams.checkIn);
     if (searchParams.checkOut) setCheckOut(searchParams.checkOut);
     if (searchParams.guests) setGuests(searchParams.guests);
+    setIsDropdownOpen(false);
   }, [searchParams.city, searchParams.placeId, searchParams.checkIn, searchParams.checkOut, searchParams.guests]);
 
   // Debounced search for locations via BookLodge backend API
@@ -47,7 +50,9 @@ export const SearchWidget = ({ initialCompact = false }) => {
         const res = await hotelService.getPlaces(city.trim());
         const locs = res.data?.locations || [];
         setSuggestions(locs);
-        setIsDropdownOpen(locs.length > 0);
+        if (isUserTyping.current && locs.length > 0) {
+          setIsDropdownOpen(true);
+        }
       } catch (err) {
         console.error("Autocomplete search error", err);
         setSuggestions([]);
@@ -74,6 +79,7 @@ export const SearchWidget = ({ initialCompact = false }) => {
   }, []);
 
   const handleCityChange = (e) => {
+    isUserTyping.current = true;
     const val = e.target.value;
     setCity(val);
     setPlaceId("");
@@ -85,7 +91,8 @@ export const SearchWidget = ({ initialCompact = false }) => {
   };
 
   const handleSelectLocation = (loc) => {
-    const fullDisplayName = loc.address ? (loc.name + ", " + loc.address) : loc.name;
+    isUserTyping.current = false;
+    const fullDisplayName = loc.address ? `${loc.name}, ${loc.address}` : loc.name;
     setCity(fullDisplayName);
     setPlaceId(loc.placeId || "");
     setIsDropdownOpen(false);
@@ -111,6 +118,7 @@ export const SearchWidget = ({ initialCompact = false }) => {
 
   const handleSearch = (e) => {
     e.preventDefault();
+    isUserTyping.current = false;
     setError("");
     setIsDropdownOpen(false);
 
@@ -125,17 +133,9 @@ export const SearchWidget = ({ initialCompact = false }) => {
     }
 
     updateSearchParams({ city, placeId, checkIn, checkOut, guests: Number(guests) });
-    const placeIdQuery = placeId ? ("&placeId=" + encodeURIComponent(placeId)) : "";
+    const placeIdQuery = placeId ? `&placeId=${encodeURIComponent(placeId)}` : "";
     navigate(
-      "/search?city=" +
-        encodeURIComponent(city) +
-        placeIdQuery +
-        "&checkIn=" +
-        checkIn +
-        "&checkOut=" +
-        checkOut +
-        "&guests=" +
-        guests
+      `/search?city=${encodeURIComponent(city)}${placeIdQuery}&checkIn=${checkIn}&checkOut=${checkOut}&guests=${guests}`
     );
   };
 
@@ -165,7 +165,7 @@ export const SearchWidget = ({ initialCompact = false }) => {
                 value={city}
                 onChange={handleCityChange}
                 onFocus={() => {
-                  if (suggestions.length > 0) setIsDropdownOpen(true);
+                  if (isUserTyping.current && suggestions.length > 0) setIsDropdownOpen(true);
                 }}
                 onKeyDown={handleKeyDown}
                 placeholder="e.g. London, UK or Lagos, Nigeria"
@@ -189,13 +189,16 @@ export const SearchWidget = ({ initialCompact = false }) => {
                       type="button"
                       onClick={() => handleSelectLocation(loc)}
                       onMouseEnter={() => setSelectedIndex(idx)}
-                      className={"w-full text-left px-3.5 py-2.5 flex items-center space-x-2.5 transition cursor-pointer text-xs " + (
+                      className={`w-full text-left px-3.5 py-2.5 flex items-center space-x-2.5 transition cursor-pointer text-xs ${
                         isSelected
                           ? "bg-stone-100 text-black font-semibold"
                           : "text-slate-700 hover:bg-stone-50"
-                      )}
+                      }`}
                     >
-                      <span className="text-slate-400 text-sm shrink-0">📍</span>
+                      <svg className="w-4 h-4 text-[#254546] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
                       <div className="flex-1 truncate">
                         <span className="font-bold text-black">{loc.name}</span>
                         {loc.address && (
