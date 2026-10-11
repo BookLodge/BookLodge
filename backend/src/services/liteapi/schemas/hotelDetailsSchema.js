@@ -1,6 +1,39 @@
 const { z } = require("zod");
 const { ratePriceSchema } = require("./hotelSearchSchema");
 
+const photoSchema = z.object({
+  url: z.string(),
+  caption: z.string().optional(),
+  imageDescription: z.string().optional(),
+  mainPhoto: z.boolean().optional(),
+  hd_url: z.string().optional(),
+  urlHd: z.string().optional(),
+  defaultImage: z.boolean().optional(),
+}).passthrough();
+
+const bedTypeSchema = z.object({
+  quantity: z.union([z.string(), z.number()]).optional(),
+  bedType: z.string().optional(),
+  bedSize: z.string().optional(),
+}).passthrough();
+
+const roomAmenitySchema = z.object({
+  amenitiesId: z.union([z.string(), z.number()]).optional(),
+  name: z.union([z.string(), z.number()]).optional(),
+}).passthrough();
+
+const hotelRoomSchema = z.object({
+  id: z.union([z.string(), z.number()]).optional(),
+  roomName: z.string().optional(),
+  name: z.string().optional(),
+  description: z.string().optional(),
+  maxOccupancy: z.union([z.string(), z.number()]).optional(),
+  maxAdults: z.union([z.string(), z.number()]).optional(),
+  bedTypes: z.array(bedTypeSchema).optional().default([]),
+  roomAmenities: z.array(roomAmenitySchema).optional().default([]),
+  photos: z.array(photoSchema).optional().default([]),
+}).passthrough();
+
 const hotelDetailsRateSchema = ratePriceSchema.extend({
   offerId: z.string(),
   occupancyNumber: z.number().int(),
@@ -15,6 +48,8 @@ const liteApiHotelDetailsResponseSchema = z.object({
     name: z.string(),
     hotelDescription: z.string(),
     main_photo: z.string(),
+    hotelImages: z.array(photoSchema).optional().default([]),
+    rooms: z.array(hotelRoomSchema).optional().default([]),
     address: z.string(),
     city: z.string(),
     country: z.string(),
@@ -28,7 +63,25 @@ const liteApiHotelDetailsResponseSchema = z.object({
       checkin_start: z.string(),
       checkout: z.string(),
     }),
-  }),
+  }).passthrough(),
+});
+
+const bookLodgePhotoSchema = z.object({
+  url: z.string(),
+  caption: z.string().optional(),
+  imageDescription: z.string().optional(),
+  mainPhoto: z.boolean().optional(),
+  hd_url: z.string().optional(),
+});
+
+const bookLodgeRoomSchema = z.object({
+  id: z.union([z.string(), z.number()]).optional(),
+  name: z.string(),
+  description: z.string().optional(),
+  maxOccupancy: z.number().optional(),
+  bedType: z.string().optional(),
+  amenities: z.array(z.string()),
+  photos: z.array(bookLodgePhotoSchema),
 });
 
 const hotelDetailsResponseSchema = z.object({
@@ -36,6 +89,8 @@ const hotelDetailsResponseSchema = z.object({
   name: z.string(),
   description: z.string(),
   photo: z.string(),
+  photos: z.array(bookLodgePhotoSchema),
+  rooms: z.array(bookLodgeRoomSchema),
   address: z.string(),
   city: z.string(),
   country: z.string(),

@@ -1,9 +1,11 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useBooking } from '../../context/BookingContext';
 
 export const Navbar = () => {
   const { user, isAuthenticated, isAdmin, logout } = useAuth();
+  const { resetSearchParams } = useBooking();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -11,6 +13,10 @@ export const Navbar = () => {
   const handleLogout = () => {
     logout();
     navigate('/');
+  };
+
+  const handleLogoClick = () => {
+    resetSearchParams();
   };
 
   const isActive = (path) => location.pathname === path;
@@ -28,7 +34,11 @@ export const Navbar = () => {
         <div className="flex items-center justify-between h-16">
 
           {/* Logo */}
-          <Link to="/" className="text-xl font-bold tracking-tight text-[#fefae0] hover:opacity-80 transition">
+          <Link
+            to="/"
+            onClick={handleLogoClick}
+            className="text-xl font-bold tracking-tight text-[#fefae0] hover:opacity-80 transition cursor-pointer"
+          >
             Book<span className="font-light">Lodge</span>
           </Link>
 
@@ -97,6 +107,7 @@ export const Navbar = () => {
       {/* Mobile Menu */}
       {mobileMenuOpen && (
         <div style={{ backgroundColor: '#1d3435' }} className="md:hidden border-t border-[#fefae0]/10 px-4 pt-3 pb-5 space-y-2">
+          <Link to="/" onClick={() => { setMobileMenuOpen(false); handleLogoClick(); }} className="block py-2 text-[#fefae0] font-bold">Home</Link>
           <Link to="/search" onClick={() => setMobileMenuOpen(false)} className="block py-2 text-[#fefae0]/80 hover:text-[#fefae0]">Explore Hotels</Link>
           <Link to="/about" onClick={() => setMobileMenuOpen(false)} className="block py-2 text-[#fefae0]/80 hover:text-[#fefae0]">About</Link>
           <Link to="/contact" onClick={() => setMobileMenuOpen(false)} className="block py-2 text-[#fefae0]/80 hover:text-[#fefae0]">Contact</Link>

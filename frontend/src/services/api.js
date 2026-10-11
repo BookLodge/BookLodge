@@ -19,7 +19,7 @@ api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers.Authorization = 'Bearer ' + token;
     }
     return config;
   },
@@ -39,7 +39,7 @@ api.interceptors.response.use(
     let customMessage = error.response?.data?.message;
 
     if (providerInfo?.description) {
-      customMessage = `${customMessage}: ${providerInfo.description}`;
+      customMessage = customMessage + ': ' + providerInfo.description;
     }
 
     if (!customMessage) {
@@ -58,7 +58,5 @@ api.interceptors.response.use(
     return Promise.reject(err);
   }
 );
-
-export const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 
 export default api;

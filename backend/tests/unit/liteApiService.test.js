@@ -365,6 +365,8 @@ const bookLodgeHotel = () => ({
   name: "Example Hotel",
   description: "<p>A comfortable hotel...</p>",
   photo: "https://cdn.example.com/hotel-123.jpg",
+  photos: [],
+  rooms: [],
   address: "123 Example Street",
   city: "Lagos",
   country: "NG",

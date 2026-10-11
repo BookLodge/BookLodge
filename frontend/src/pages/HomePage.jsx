@@ -1,8 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { SearchWidget } from "../components/hotel/SearchWidget";
-import { HotelCard } from "../components/hotel/HotelCard";
-import { SkeletonHotelCard } from "../components/common/SkeletonCard";
-import { hotelService } from "../services/hotelService";
 import { useNavigate } from "react-router-dom";
 import { addDays, format } from "date-fns";
 
@@ -44,8 +41,7 @@ export const HomePage = () => {
 
   return (
     <div className="space-y-14 pb-16">
-
-      {/* Hero Section: Search box first, subtle tagline below */}
+      {/* Hero Section: Search box first */}
       <section style={{ backgroundColor: "#254546" }} className="text-white pt-12 pb-24 px-4 sm:px-6 lg:px-8">
         <div className="max-w-5xl mx-auto space-y-4">
           <SearchWidget />
@@ -55,7 +51,7 @@ export const HomePage = () => {
         </div>
       </section>
 
-      {/* Trust & Guarantee Cards (Crisp, Human-engineered) */}
+      {/* Trust & Guarantee Cards */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           <div className="bg-white rounded-lg border border-stone-200 p-6">
@@ -73,7 +69,7 @@ export const HomePage = () => {
         </div>
       </section>
 
-      {/* Curated Highlights (Static 3-Card Showcase) */}
+      {/* Curated Highlights Showcase */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between mb-5">
           <div>
@@ -103,14 +99,13 @@ export const HomePage = () => {
                 <p className="text-xs text-slate-500">{item.location}</p>
                 <div className="pt-2 border-t border-stone-100 flex items-center justify-between">
                   <span className="text-xs text-slate-500">From <strong className="text-sm text-stone-900 font-bold">{item.price}</strong> / night</span>
-                  <span style={{ color: "#254546" }} className="text-xs font-semibold">Search City →</span>
+                  <span style={{ color: "#254546" }} className="text-xs font-semibold">Search City &rarr;</span>
                 </div>
               </div>
             </div>
           ))}
         </div>
       </section>
-
     </div>
   );
 };

@@ -61,6 +61,8 @@ describe("mapHotelDetailsResponse", () => {
       name: "Example Hotel",
       description: "<p>A comfortable hotel...</p>",
       photo: "https://example.com/main.jpg",
+      photos: [],
+      rooms: [],
       address: "123 Example Street",
       city: "Lagos",
       country: "NG",
@@ -71,6 +73,28 @@ describe("mapHotelDetailsResponse", () => {
       checkout: "11:00 AM",
       rates: [],
     });
+  });
+
+  it("maps the hotel gallery, including the default flag and HD url", () => {
+    const details = hotelDetails({
+      hotelImages: [
+        {
+          url: "https://example.com/gallery.jpg",
+          urlHd: "https://example.com/gallery-hd.jpg",
+          caption: "Lobby",
+          defaultImage: true,
+        },
+      ],
+    });
+
+    expect(mapHotelDetailsResponse(details, { data: [] }).photos).toEqual([
+      {
+        url: "https://example.com/gallery.jpg",
+        caption: "Lobby",
+        mainPhoto: true,
+        hd_url: "https://example.com/gallery-hd.jpg",
+      },
+    ]);
   });
 
   it("maps a LiteAPI rate into a BookLodge rate", () => {

@@ -8,7 +8,8 @@ export const BookingProvider = ({ children }) => {
   const checkoutDefault = addDays(new Date(), 4);
 
   const [searchParams, setSearchParams] = useState({
-    city: 'Lagos',
+    city: '',
+    placeId: '',
     checkIn: format(tomorrow, 'yyyy-MM-dd'),
     checkOut: format(checkoutDefault, 'yyyy-MM-dd'),
     guests: 2
@@ -31,13 +32,24 @@ export const BookingProvider = ({ children }) => {
     });
   }, []);
 
+  const resetSearchParams = useCallback(() => {
+    const tmrw = addDays(new Date(), 1);
+    const chkOut = addDays(new Date(), 4);
+    setSearchParams({
+      city: '',
+      placeId: '',
+      checkIn: format(tmrw, 'yyyy-MM-dd'),
+      checkOut: format(chkOut, 'yyyy-MM-dd'),
+      guests: 2
+    });
+  }, []);
+
   const selectOffer = useCallback((hotel, offer) => {
     setSelectedHotel(hotel);
     setSelectedOffer(offer);
   }, []);
 
   const startPrebookSession = useCallback((sessionData) => {
-    // 10 minute price-lock window
     const expiresAt = Date.now() + 10 * 60 * 1000;
     setPrebookSession({ ...sessionData, expiresAt });
   }, []);
@@ -49,6 +61,7 @@ export const BookingProvider = ({ children }) => {
   const value = {
     searchParams,
     updateSearchParams,
+    resetSearchParams,
     selectedHotel,
     selectedOffer,
     selectOffer,
