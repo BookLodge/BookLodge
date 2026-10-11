@@ -37,10 +37,10 @@ export const CheckoutPage = () => {
 
   useEffect(() => {
     if (user) {
-      if (user.firstName) setFirstName(user.firstName);
-      if (user.lastName) setLastName(user.lastName);
-      if (user.email) setEmail(user.email);
-      if (user.phone) setPhone(user.phone);
+      if (!firstName && user.firstName) setFirstName(user.firstName);
+      if (!lastName && user.lastName) setLastName(user.lastName);
+      setEmail(user.email || "");
+      setPhone(user.phone || "");
     }
   }, [user]);
 
@@ -48,7 +48,6 @@ export const CheckoutPage = () => {
     const errors = {};
     const cleanFirst = firstName.trim();
     const cleanLast = lastName.trim();
-    const cleanEmail = email.trim();
 
     if (!cleanFirst) {
       errors.firstName = "First name is required.";
@@ -56,13 +55,6 @@ export const CheckoutPage = () => {
 
     if (!cleanLast) {
       errors.lastName = "Last name is required.";
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!cleanEmail) {
-      errors.email = "Email address is required.";
-    } else if (!emailRegex.test(cleanEmail)) {
-      errors.email = "Please enter a valid email address.";
     }
 
     if (!isAuthenticated) {
@@ -93,10 +85,13 @@ export const CheckoutPage = () => {
 
     setIsPrebooking(true);
     try {
+      const activeEmail = (user?.email || email).trim().toLowerCase();
+      const activePhone = (user?.phone || phone).trim();
+
       const res = await bookingService.prebook({ offerId: selectedOffer?.offerId });
       startPrebookSession({
         ...res.data,
-        guestInfo: { firstName, lastName, email, phone },
+        guestInfo: { firstName: firstName.trim(), lastName: lastName.trim(), email: activeEmail, phone: activePhone },
         hotelInfo: selectedHotel,
         offerInfo: selectedOffer,
       });
@@ -125,19 +120,21 @@ export const CheckoutPage = () => {
       }
 
       toast.loading("Finalizing hotel reservation...", { id: "payment-process" });
+      const activeEmail = (user?.email || email).trim().toLowerCase();
+
       const res = await bookingService.bookHotel({
         prebookId: prebookSession.prebookId,
         holder: {
           firstName: firstName.trim(),
           lastName: lastName.trim(),
-          email: email.trim().toLowerCase(),
+          email: activeEmail,
         },
         guests: [
           {
             occupancyNumber: 1,
             firstName: firstName.trim(),
             lastName: lastName.trim(),
-            email: email.trim().toLowerCase(),
+            email: activeEmail,
           },
         ],
       });
@@ -146,7 +143,16 @@ export const CheckoutPage = () => {
       clearPrebookSession();
 
       const bookingData = res.data;
-      navigate(`/booking-confirmation?bookingId=${bookingData._id}&reference=${bookingData.clientReference}`, { state: { booking: bookingData, hotel: currentHotel, offer: currentOffer } });
+      navigate(
+        `/booking-confirmation?bookingId=${bookingData._id}&reference=${bookingData.clientReference}`,
+        {
+          state: {
+            booking: bookingData,
+            hotel: currentHotel,
+            offer: currentOffer,
+          },
+        }
+      );
     } catch (err) {
       const msg = err.message || "Booking confirmation failed. Please contact support.";
       setError(msg);
@@ -155,8 +161,6 @@ export const CheckoutPage = () => {
       setIsConfirming(false);
     }
   };
-
-
 
   const currentHotel = prebookSession?.hotelInfo || selectedHotel;
   const currentOffer = prebookSession?.offerInfo || selectedOffer;
@@ -176,7 +180,7 @@ export const CheckoutPage = () => {
           Complete Your Reservation
         </h1>
         <p className="text-xs text-slate-500 mt-1">
-          Review your stay details, provide guest information, and complete checkout.
+          Review your stay details, confirm guest information, and complete checkout.
         </p>
       </div>
 
@@ -189,9 +193,8 @@ export const CheckoutPage = () => {
             </div>
           )}
 
-
-
-          {!isAuthenticated && !prebookSession && (
+          {!isAuthenticated ? (
+            /* Account Required Banner */
             <div className="bg-white rounded-lg border border-stone-200 p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h3 className="font-bold text-black text-sm mb-1">
@@ -206,156 +209,159 @@ export const CheckoutPage = () => {
                   to="/login"
                   state={{ from: { pathname: "/checkout" } }}
                   style={{ backgroundColor: "#254546", color: "#fefae0" }}
-                  className="text-xs font-semibold px-5 py-2.5 rounded-md transition hover:opacity-90 whitespace-nowrap"
+                  className="text-xs font-semibold px-5 py-2.5 rounded-md transition hover:opacity-90 whitespace-nowrap cursor-pointer"
                 >
                   Sign In
                 </Link>
                 <Link
                   to="/register"
                   state={{ from: { pathname: "/checkout" } }}
-                  className="text-xs font-semibold px-4 py-2.5 rounded-md border border-stone-300 text-slate-700 hover:bg-stone-50 transition whitespace-nowrap"
+                  className="text-xs font-semibold text-slate-700 bg-white hover:bg-stone-50 border border-stone-300 px-5 py-2.5 rounded-md transition whitespace-nowrap cursor-pointer"
                 >
                   Register
                 </Link>
               </div>
             </div>
-          )}
-
-          {isAuthenticated && (
-            <div className="bg-stone-50 border border-stone-200 rounded-lg p-4 flex items-center justify-between text-xs">
-              <span className="text-slate-700">
-                Signed in as <strong className="text-black">{user.firstName} {user.lastName}</strong> ({user.email})
-              </span>
-            </div>
-          )}
-
-          <div className="bg-white rounded-lg border border-stone-200 p-6 shadow-xs space-y-5">
-            <div className="pb-3 border-b border-stone-100">
-              <h3 className="font-bold text-black text-base">
-                Guest Information
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Primary guest details matching government-issued ID.
-              </p>
-            </div>
-
-            <form onSubmit={handleProceedToPrebook} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-black uppercase tracking-wider mb-1">
-                    First Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={firstName}
-                    disabled={!!prebookSession}
-                    onChange={(e) => {
-                      setFirstName(e.target.value);
-                      if (fieldErrors.firstName) setFieldErrors((prev) => ({ ...prev, firstName: null }));
-                    }}
-                    placeholder="e.g. Alex"
-                    className="w-full px-3.5 py-2.5 bg-stone-100 hover:bg-stone-50 border border-stone-300 rounded-md text-sm font-medium text-black focus:bg-white focus:border-[#254546] focus:ring-1 focus:ring-[#254546] outline-none transition disabled:opacity-60"
-                  />
-                  {fieldErrors.firstName && (
-                    <p className="text-[11px] text-rose-600 mt-1">{fieldErrors.firstName}</p>
-                  )}
+          ) : (
+            <>
+              {/* Logged-in Guest Information Form */}
+              <div className="bg-white rounded-lg border border-stone-200 p-6 sm:p-8 shadow-xs space-y-6">
+                <div className="flex items-center justify-between pb-4 border-b border-stone-100">
+                  <div>
+                    <h3 className="font-bold text-black text-lg">Guest Information</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Enter the primary guest's legal name matching their passport or government ID.
+                    </p>
+                  </div>
+                  <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
+                    ✓ Verified Account
+                  </span>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-black uppercase tracking-wider mb-1">
-                    Last Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={lastName}
-                    disabled={!!prebookSession}
-                    onChange={(e) => {
-                      setLastName(e.target.value);
-                      if (fieldErrors.lastName) setFieldErrors((prev) => ({ ...prev, lastName: null }));
-                    }}
-                    placeholder="e.g. Morgan"
-                    className="w-full px-3.5 py-2.5 bg-stone-100 hover:bg-stone-50 border border-stone-300 rounded-md text-sm font-medium text-black focus:bg-white focus:border-[#254546] focus:ring-1 focus:ring-[#254546] outline-none transition disabled:opacity-60"
-                  />
-                  {fieldErrors.lastName && (
-                    <p className="text-[11px] text-rose-600 mt-1">{fieldErrors.lastName}</p>
+                <form onSubmit={handleProceedToPrebook} className="space-y-4">
+                  {/* First Name & Last Name (Editable) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-black uppercase tracking-wider mb-1">
+                        First Name *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={firstName}
+                        disabled={!!prebookSession}
+                        onChange={(e) => {
+                          setFirstName(e.target.value);
+                          if (fieldErrors.firstName) setFieldErrors((prev) => ({ ...prev, firstName: null }));
+                        }}
+                        placeholder="e.g. Alex"
+                        className="w-full px-3.5 py-2.5 bg-stone-100 hover:bg-stone-50 border border-stone-300 rounded-md text-sm font-medium text-black focus:bg-white focus:border-[#254546] focus:ring-1 focus:ring-[#254546] outline-none transition disabled:opacity-60"
+                      />
+                      {fieldErrors.firstName && (
+                        <p className="text-[11px] text-rose-600 mt-1">{fieldErrors.firstName}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-black uppercase tracking-wider mb-1">
+                        Last Name *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={lastName}
+                        disabled={!!prebookSession}
+                        onChange={(e) => {
+                          setLastName(e.target.value);
+                          if (fieldErrors.lastName) setFieldErrors((prev) => ({ ...prev, lastName: null }));
+                        }}
+                        placeholder="e.g. Morgan"
+                        className="w-full px-3.5 py-2.5 bg-stone-100 hover:bg-stone-50 border border-stone-300 rounded-md text-sm font-medium text-black focus:bg-white focus:border-[#254546] focus:ring-1 focus:ring-[#254546] outline-none transition disabled:opacity-60"
+                      />
+                      {fieldErrors.lastName && (
+                        <p className="text-[11px] text-rose-600 mt-1">{fieldErrors.lastName}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Email & Phone (Locked to account) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-bold text-black uppercase tracking-wider">
+                          Email Address
+                        </label>
+                        <span className="text-[10px] font-medium text-slate-400">Locked to account</span>
+                      </div>
+                      <input
+                        type="email"
+                        readOnly
+                        disabled
+                        value={user?.email || email}
+                        className="w-full px-3.5 py-2.5 bg-stone-100/90 border border-stone-300 rounded-md text-sm font-medium text-slate-700 cursor-not-allowed select-none"
+                      />
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        Confirmation receipts will be sent to this email.
+                      </p>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-bold text-black uppercase tracking-wider">
+                          Phone Number
+                        </label>
+                        <span className="text-[10px] font-medium text-slate-400">From profile</span>
+                      </div>
+                      <input
+                        type="tel"
+                        readOnly
+                        disabled
+                        value={user?.phone || phone || "Not provided on profile"}
+                        className="w-full px-3.5 py-2.5 bg-stone-100/90 border border-stone-300 rounded-md text-sm font-medium text-slate-700 cursor-not-allowed select-none"
+                      />
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        Registered account contact number.
+                      </p>
+                    </div>
+                  </div>
+
+                  {!prebookSession && (
+                    <button
+                      type="submit"
+                      disabled={isPrebooking}
+                      style={{ backgroundColor: "#254546", color: "#fefae0" }}
+                      className="w-full mt-3 font-bold py-3 rounded-md flex items-center justify-center space-x-2 transition hover:opacity-90 cursor-pointer disabled:opacity-60"
+                    >
+                      {isPrebooking ? (
+                        <span>Locking Rate with Provider...</span>
+                      ) : (
+                        <span>Proceed to Payment & Lock Rate</span>
+                      )}
+                    </button>
                   )}
-                </div>
+                </form>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-black uppercase tracking-wider mb-1">
-                    Email Address *
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    disabled={!!prebookSession}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      if (fieldErrors.email) setFieldErrors((prev) => ({ ...prev, email: null }));
-                    }}
-                    placeholder="alex.morgan@example.com"
-                    className="w-full px-3.5 py-2.5 bg-stone-100 hover:bg-stone-50 border border-stone-300 rounded-md text-sm font-medium text-black focus:bg-white focus:border-[#254546] focus:ring-1 focus:ring-[#254546] outline-none transition disabled:opacity-60"
-                  />
-                  {fieldErrors.email && (
-                    <p className="text-[11px] text-rose-600 mt-1">{fieldErrors.email}</p>
-                  )}
-                </div>
+              {prebookSession && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-black text-base">
+                      Payment Details (Sandbox)
+                    </h3>
+                    <span className="text-xs font-semibold" style={{ color: "#254546" }}>
+                      Ref: {prebookSession.clientReference}
+                    </span>
+                  </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-black uppercase tracking-wider mb-1">
-                    Phone Number
-                  </label>
-                  <input
-                    type="tel"
-                    value={phone}
-                    disabled={!!prebookSession}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+234 800 000 0000"
-                    className="w-full px-3.5 py-2.5 bg-stone-100 hover:bg-stone-50 border border-stone-300 rounded-md text-sm font-medium text-black focus:bg-white focus:border-[#254546] focus:ring-1 focus:ring-[#254546] outline-none transition disabled:opacity-60"
+                  <SandboxCardWidget
+                    amount={totalPrice}
+                    currency={currency}
+                    onSubmit={handlePaymentSubmit}
+                    isProcessing={isConfirming}
                   />
                 </div>
-              </div>
-
-              {!prebookSession && (
-                <button
-                  type="submit"
-                  disabled={isPrebooking}
-                  style={{ backgroundColor: "#254546", color: "#fefae0" }}
-                  className="w-full mt-2 font-bold py-3 rounded-md flex items-center justify-center space-x-2 transition hover:opacity-90 cursor-pointer disabled:opacity-60"
-                >
-                  {isPrebooking ? (
-                    <span>Locking Rate with Provider...</span>
-                  ) : (
-                    <span>Proceed to Payment & Lock Rate</span>
-                  )}
-                </button>
               )}
-            </form>
-          </div>
-
-          {prebookSession && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-bold text-black text-base">
-                  Payment Details (Sandbox)
-                </h3>
-                <span className="text-xs font-semibold" style={{ color: "#254546" }}>
-                  Ref: {prebookSession.clientReference}
-                </span>
-              </div>
-
-              <SandboxCardWidget
-                amount={totalPrice}
-                currency={currency}
-                onSubmit={handlePaymentSubmit}
-                isProcessing={isConfirming}
-              />
-            </div>
+            </>
           )}
         </div>
 
@@ -428,4 +434,3 @@ export const CheckoutPage = () => {
     </div>
   );
 };
-

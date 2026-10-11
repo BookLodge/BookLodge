@@ -6,9 +6,16 @@ import { hotelService } from "../services/hotelService";
 import { Spinner } from "../components/common/Spinner";
 import { format, parseISO } from "date-fns";
 
+// Timezone-safe date formatting to prevent 1-day UTC rollback
 const formatDateSafe = (dateStr, formatPattern = "EEE, MMM d, yyyy") => {
   if (!dateStr) return "Confirmed";
   try {
+    const cleanStr = String(dateStr).split("T")[0];
+    const parts = cleanStr.split("-").map(Number);
+    if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+      const d = new Date(parts[0], parts[1] - 1, parts[2]);
+      return format(d, formatPattern);
+    }
     const d = typeof dateStr === "string" ? parseISO(dateStr) : new Date(dateStr);
     if (isNaN(d.getTime())) return String(dateStr);
     return format(d, formatPattern);
