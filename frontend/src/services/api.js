@@ -1,7 +1,14 @@
-import axios from 'axios';
+﻿import axios from 'axios';
+
+let rawBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+
+// Normalize: ensure baseURL ends with /api if a full HTTP/HTTPS URL is provided
+if (rawBaseUrl.startsWith('http') && !rawBaseUrl.endsWith('/api') && !rawBaseUrl.endsWith('/api/')) {
+  rawBaseUrl = `${rawBaseUrl.replace(/\/+$/, '')}/api`;
+}
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api',
+  baseURL: rawBaseUrl,
   headers: {
     'Content-Type': 'application/json',
   },
