@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useBooking } from "../context/BookingContext";
@@ -146,9 +146,7 @@ export const CheckoutPage = () => {
       clearPrebookSession();
 
       const bookingData = res.data;
-      navigate(
-        `/booking-confirmation?bookingId=${bookingData._id}&reference=${bookingData.clientReference}`
-      );
+      navigate(`/booking-confirmation?bookingId=${bookingData._id}&reference=${bookingData.clientReference}`, { state: { booking: bookingData, hotel: currentHotel, offer: currentOffer } });
     } catch (err) {
       const msg = err.message || "Booking confirmation failed. Please contact support.";
       setError(msg);
@@ -430,3 +428,4 @@ export const CheckoutPage = () => {
     </div>
   );
 };
+

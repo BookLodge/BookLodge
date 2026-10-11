@@ -1,10 +1,10 @@
-import React from "react";
+﻿import React from "react";
 
 export const FilterSidebar = ({ filters, onFilterChange, onReset, maxAvailablePrice = 3000 }) => {
   const ratingTiers = [
     { key: "tier_high", label: "8.0 - 10" },
     { key: "tier_mid", label: "5.1 - 7.9" },
-    { key: "tier_low", label: "5.0 & Below" }
+    { key: "tier_low", label: "0.0 - 5.0" }
   ];
 
   return (
