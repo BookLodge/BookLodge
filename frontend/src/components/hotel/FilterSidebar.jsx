@@ -1,11 +1,11 @@
 import React from "react";
 
 export const FilterSidebar = ({ filters, onFilterChange, onReset, maxAvailablePrice = 3000 }) => {
-  const starOptions = [
-    { stars: 5, label: "5 Stars (9.0+ Excellent)" },
-    { stars: 4, label: "4 Stars (7.5 - 8.9 Very Good)" },
-    { stars: 3, label: "3 Stars (6.0 - 7.4 Good)" },
-    { stars: 2, label: "2 Stars & below" }
+  const ratingTiers = [
+    { key: "9", label: "9.0+ Exceptional" },
+    { key: "8", label: "8.0 - 8.9 Very Good" },
+    { key: "7", label: "7.0 - 7.9 Good" },
+    { key: "under7", label: "Below 7.0 Pleasant" }
   ];
 
   return (
@@ -21,38 +21,34 @@ export const FilterSidebar = ({ filters, onFilterChange, onReset, maxAvailablePr
         </button>
       </div>
 
-      {/* Star Rating Filter */}
+      {/* Guest Review Rating Filter */}
       <div>
         <label className="block text-xs font-bold text-black uppercase tracking-wider mb-2">
-          Rating & Category
+          Guest Review Score
         </label>
         <div className="space-y-1.5">
-          {starOptions.map(({ stars, label }) => {
-            const isChecked = filters.stars.includes(stars);
+          {ratingTiers.map(({ key, label }) => {
+            const isChecked = filters.ratingTiers?.includes(key);
             return (
               <label
-                key={stars}
+                key={key}
                 className="flex items-center space-x-2.5 text-xs text-slate-700 cursor-pointer p-1.5 rounded-md hover:bg-stone-50 transition"
               >
                 <input
                   type="checkbox"
-                  checked={isChecked}
+                  checked={isChecked || false}
                   onChange={(e) => {
+                    const current = filters.ratingTiers || [];
                     const next = e.target.checked
-                      ? [...filters.stars, stars]
-                      : filters.stars.filter((s) => s !== stars);
-                    onFilterChange({ ...filters, stars: next });
+                      ? [...current, key]
+                      : current.filter((k) => k !== key);
+                    onFilterChange({ ...filters, ratingTiers: next });
                   }}
                   className="w-4 h-4 rounded cursor-pointer"
                   style={{ accentColor: "#254546" }}
                 />
-                <span className="flex items-center space-x-1.5">
-                  <span className="text-amber-400 text-sm leading-none">
-                    {"★".repeat(stars)}
-                  </span>
-                  <span className="font-medium text-slate-600">
-                    {stars} Star{stars > 1 ? "s" : ""}
-                  </span>
+                <span className="font-medium text-slate-700">
+                  {label}
                 </span>
               </label>
             );

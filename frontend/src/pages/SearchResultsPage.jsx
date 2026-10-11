@@ -11,20 +11,6 @@ import { addDays, format, differenceInCalendarDays, parseISO } from "date-fns";
 const defaultCheckIn = format(addDays(new Date(), 1), "yyyy-MM-dd");
 const defaultCheckOut = format(addDays(new Date(), 4), "yyyy-MM-dd");
 
-// Maps 10-point review rating or 5-point star rating into 1-5 star brackets
-const getHotelStars = (rating) => {
-  const num = Number(rating);
-  if (!num || isNaN(num) || num <= 0) return 3;
-  if (num > 5) {
-    // 10-point scale: 9.0+ -> 5, 7.5-8.9 -> 4, 6.0-7.4 -> 3, <6.0 -> 2
-    if (num >= 9.0) return 5;
-    if (num >= 7.5) return 4;
-    if (num >= 6.0) return 3;
-    return 2;
-  }
-  return Math.max(1, Math.min(5, Math.round(num)));
-};
-
 export const SearchResultsPage = () => {
   const [searchParams] = useSearchParams();
   const { updateSearchParams } = useBooking();
@@ -42,7 +28,7 @@ export const SearchResultsPage = () => {
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
   const [filters, setFilters] = useState({
-    stars: [],
+    ratingTiers: [],
     maxPrice: 3000,
     breakfastOnly: false
   });
@@ -97,10 +83,18 @@ export const SearchResultsPage = () => {
   }, [city, placeId, checkIn, checkOut, guests]);
 
   const filteredHotels = hotels.filter((hotel) => {
-    // Star rating filter (if selected)
-    if (filters.stars && filters.stars.length > 0) {
-      const hotelStars = getHotelStars(hotel.rating);
-      if (!filters.stars.includes(hotelStars)) return false;
+    const score = Number(hotel.rating || 0);
+
+    // Guest Review Score Tiers filter
+    if (filters.ratingTiers && filters.ratingTiers.length > 0) {
+      const matchesAnyTier = filters.ratingTiers.some((tier) => {
+        if (tier === "9") return score >= 9.0;
+        if (tier === "8") return score >= 8.0 && score < 9.0;
+        if (tier === "7") return score >= 7.0 && score < 8.0;
+        if (tier === "under7") return score < 7.0;
+        return false;
+      });
+      if (!matchesAnyTier) return false;
     }
 
     // Max price per night filter
@@ -118,7 +112,7 @@ export const SearchResultsPage = () => {
     return true;
   });
 
-  const handleResetFilters = () => setFilters({ stars: [], maxPrice: 3000, breakfastOnly: false });
+  const handleResetFilters = () => setFilters({ ratingTiers: [], maxPrice: 3000, breakfastOnly: false });
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
@@ -176,7 +170,7 @@ export const SearchResultsPage = () => {
             <div className="bg-white rounded-lg border border-stone-200 p-12 text-center space-y-3 shadow-xs">
               <h3 className="text-base font-bold text-black">No properties matched your criteria</h3>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                Try widening your price range, selecting different star ratings, or searching another destination.
+                Try widening your price range, selecting different review scores, or searching another destination.
               </p>
               <button
                 onClick={handleResetFilters}
