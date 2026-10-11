@@ -142,24 +142,24 @@ export const SearchWidget = ({ initialCompact = false }) => {
   return (
     <div
       className={
-        "bg-white rounded-lg border border-stone-300 shadow-xs " +
+        "bg-white rounded-lg border border-stone-300 shadow-xs w-full max-w-full box-border " +
         (initialCompact ? "p-4" : "p-5 sm:p-6")
       }
     >
-      <form onSubmit={handleSearch} className="space-y-4">
+      <form onSubmit={handleSearch} className="space-y-4 w-full max-w-full box-border">
         {error && (
           <div className="p-3 text-xs bg-rose-50 border border-rose-200 text-rose-800 rounded-md">
             {error}
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3.5">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3.5 w-full max-w-full box-border">
           {/* Destination - Native React Autocomplete */}
-          <div className="relative" ref={dropdownContainerRef}>
+          <div className="relative w-full min-w-0 max-w-full box-border" ref={dropdownContainerRef}>
             <label className="block text-xs font-bold uppercase tracking-wider text-black mb-1">
               Destination
             </label>
-            <div className="relative">
+            <div className="relative w-full min-w-0 max-w-full box-border">
               <input
                 type="text"
                 value={city}
@@ -169,7 +169,7 @@ export const SearchWidget = ({ initialCompact = false }) => {
                 }}
                 onKeyDown={handleKeyDown}
                 placeholder="e.g. London, UK or Lagos, Nigeria"
-                className="w-full px-3.5 py-2.5 bg-stone-100 hover:bg-stone-50 border border-stone-300 rounded-md text-sm font-medium text-black focus:bg-white focus:border-[#254546] focus:ring-1 focus:ring-[#254546] outline-none transition"
+                className="w-full min-w-0 max-w-full box-border px-3.5 py-2.5 bg-stone-100 hover:bg-stone-50 border border-stone-300 rounded-md text-sm font-medium text-black focus:bg-white focus:border-[#254546] focus:ring-1 focus:ring-[#254546] outline-none transition block"
               />
               {isLoadingLocations && (
                 <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
@@ -212,7 +212,7 @@ export const SearchWidget = ({ initialCompact = false }) => {
           </div>
 
           {/* Check-in */}
-          <div>
+          <div className="w-full min-w-0 max-w-full box-border">
             <label className="block text-xs font-bold uppercase tracking-wider text-black mb-1">
               Check-In Date
             </label>
@@ -226,12 +226,12 @@ export const SearchWidget = ({ initialCompact = false }) => {
                   setCheckOut(format(addDays(parseISO(e.target.value), 2), "yyyy-MM-dd"));
                 }
               }}
-              className="w-full px-3.5 py-2.5 bg-stone-100 hover:bg-stone-50 border border-stone-300 rounded-md text-sm font-medium text-black focus:bg-white focus:border-[#254546] focus:ring-1 focus:ring-[#254546] outline-none transition"
+              className="w-full min-w-0 max-w-full box-border px-3.5 py-2.5 bg-stone-100 hover:bg-stone-50 border border-stone-300 rounded-md text-sm font-medium text-black focus:bg-white focus:border-[#254546] focus:ring-1 focus:ring-[#254546] outline-none transition block"
             />
           </div>
 
           {/* Check-out */}
-          <div>
+          <div className="w-full min-w-0 max-w-full box-border">
             <label className="block text-xs font-bold uppercase tracking-wider text-black mb-1">
               Check-Out Date
             </label>
@@ -240,20 +240,20 @@ export const SearchWidget = ({ initialCompact = false }) => {
               min={checkIn}
               value={checkOut}
               onChange={(e) => setCheckOut(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-stone-100 hover:bg-stone-50 border border-stone-300 rounded-md text-sm font-medium text-black focus:bg-white focus:border-[#254546] focus:ring-1 focus:ring-[#254546] outline-none transition"
+              className="w-full min-w-0 max-w-full box-border px-3.5 py-2.5 bg-stone-100 hover:bg-stone-50 border border-stone-300 rounded-md text-sm font-medium text-black focus:bg-white focus:border-[#254546] focus:ring-1 focus:ring-[#254546] outline-none transition block"
             />
           </div>
 
           {/* Guests + Search Button */}
-          <div className="flex gap-2 items-end">
-            <div className="flex-1">
+          <div className="flex gap-2 items-end w-full min-w-0 max-w-full box-border">
+            <div className="flex-1 min-w-0">
               <label className="block text-xs font-bold uppercase tracking-wider text-black mb-1">
                 Guests
               </label>
               <select
                 value={guests}
                 onChange={(e) => setGuests(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-stone-100 hover:bg-stone-50 border border-stone-300 rounded-md text-sm font-medium text-black focus:bg-white focus:border-[#254546] focus:ring-1 focus:ring-[#254546] outline-none transition cursor-pointer"
+                className="w-full min-w-0 max-w-full box-border px-3.5 py-2.5 bg-stone-100 hover:bg-stone-50 border border-stone-300 rounded-md text-sm font-medium text-black focus:bg-white focus:border-[#254546] focus:ring-1 focus:ring-[#254546] outline-none transition cursor-pointer block"
               >
                 <option value={1}>1 Guest</option>
                 <option value={2}>2 Guests</option>
@@ -265,7 +265,7 @@ export const SearchWidget = ({ initialCompact = false }) => {
             <button
               type="submit"
               style={{ backgroundColor: "#254546", color: "#fefae0" }}
-              className="font-semibold px-6 py-2.5 rounded-md transition hover:opacity-90 cursor-pointer whitespace-nowrap"
+              className="font-semibold px-6 py-2.5 rounded-md transition hover:opacity-90 cursor-pointer whitespace-nowrap shrink-0"
             >
               Search
             </button>

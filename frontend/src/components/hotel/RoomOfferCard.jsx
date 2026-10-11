@@ -1,11 +1,14 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 
 export const RoomOfferCard = ({ room, nights = 1, onSelect }) => {
   const [photoIndex, setPhotoIndex] = useState(0);
+  const [touchStart, setTouchStart] = useState(null);
+  const [touchEnd, setTouchEnd] = useState(null);
 
-  const photos = (room.photos && room.photos.length > 0)
-    ? room.photos
-    : [room.image].filter(Boolean);
+  const photos =
+    room.photos && room.photos.length > 0
+      ? room.photos
+      : [room.image].filter(Boolean);
 
   const formatPrice = (amount) => {
     return new Intl.NumberFormat("en-US", {
@@ -27,6 +30,30 @@ export const RoomOfferCard = ({ room, nights = 1, onSelect }) => {
     setPhotoIndex((prev) => (prev === photos.length - 1 ? 0 : prev + 1));
   };
 
+  // Touch swipe support for mobile
+  const minSwipeDistance = 35;
+
+  const handleTouchStart = (e) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchMove = (e) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    const distance = touchStart - touchEnd;
+    if (distance > minSwipeDistance) {
+      // Swiped Left -> Next Photo
+      setPhotoIndex((prev) => (prev === photos.length - 1 ? 0 : prev + 1));
+    } else if (distance < -minSwipeDistance) {
+      // Swiped Right -> Previous Photo
+      setPhotoIndex((prev) => (prev === 0 ? photos.length - 1 : prev - 1));
+    }
+  };
+
   const maxVisibleAmenities = 6;
   const amenitiesList = room.amenities || [];
   const visibleAmenities = amenitiesList.slice(0, maxVisibleAmenities);
@@ -34,12 +61,17 @@ export const RoomOfferCard = ({ room, nights = 1, onSelect }) => {
 
   return (
     <div className="bg-white rounded-lg border border-stone-200 overflow-hidden shadow-xs hover:border-[#254546]/40 transition flex flex-col md:flex-row md:h-60 lg:h-64">
-      {/* Strict Fixed-Height Room Photo Carousel */}
-      <div className="relative md:w-72 lg:w-80 h-52 sm:h-56 md:h-full bg-stone-100 overflow-hidden shrink-0 group">
+      {/* Strict Fixed-Height Room Photo Carousel with Touch Swipe */}
+      <div
+        className="relative md:w-72 lg:w-80 h-52 sm:h-56 md:h-full bg-stone-100 overflow-hidden shrink-0 group select-none touch-pan-y"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         <img
           src={photos[photoIndex] || room.image}
           alt={room.name + " - Photo " + (photoIndex + 1)}
-          className="w-full h-full object-cover transition duration-300"
+          className="w-full h-full object-cover transition duration-300 pointer-events-none"
           loading="lazy"
           onError={(e) => {
             if (room.image && e.target.src !== room.image) {
@@ -51,37 +83,44 @@ export const RoomOfferCard = ({ room, nights = 1, onSelect }) => {
         {/* Multi-photo controls (only rendered if room has multiple photos) */}
         {photos.length > 1 && (
           <>
-            {/* Prev button */}
+            {/* Prev button - Visible on mobile/touch, hover on desktop */}
             <button
               type="button"
               onClick={handlePrevPhoto}
               aria-label="Previous photo"
-              className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white w-7 h-7 rounded-full flex items-center justify-center text-sm transition opacity-0 group-hover:opacity-100 cursor-pointer"
+              className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/85 text-white w-8 h-8 rounded-full flex items-center justify-center text-lg transition opacity-90 sm:opacity-0 sm:group-hover:opacity-100 cursor-pointer z-10"
             >
               &#8249;
             </button>
 
-            {/* Next button */}
+            {/* Next button - Visible on mobile/touch, hover on desktop */}
             <button
               type="button"
               onClick={handleNextPhoto}
               aria-label="Next photo"
-              className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white w-7 h-7 rounded-full flex items-center justify-center text-sm transition opacity-0 group-hover:opacity-100 cursor-pointer"
+              className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/85 text-white w-8 h-8 rounded-full flex items-center justify-center text-lg transition opacity-90 sm:opacity-0 sm:group-hover:opacity-100 cursor-pointer z-10"
             >
               &#8250;
             </button>
 
             {/* Photo Counter Pill */}
-            <div className="absolute bottom-2.5 right-2.5 bg-black/70 backdrop-blur-xs text-white text-[11px] font-medium px-2 py-0.5 rounded-md pointer-events-none">
+            <div className="absolute bottom-2.5 right-2.5 bg-black/70 backdrop-blur-xs text-white text-[11px] font-medium px-2 py-0.5 rounded-md pointer-events-none z-10">
               {photoIndex + 1} / {photos.length}
             </div>
 
             {/* Dot indicators */}
-            <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex items-center space-x-1 pointer-events-none">
+            <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex items-center space-x-1.5 z-10">
               {photos.slice(0, 6).map((_, idx) => (
-                <span
+                <button
                   key={idx}
-                  className={"w-1.5 h-1.5 rounded-full transition-all " + (photoIndex === idx ? "bg-white scale-125" : "bg-white/50")}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPhotoIndex(idx);
+                  }}
+                  className={`w-1.5 h-1.5 rounded-full transition-all cursor-pointer ${
+                    photoIndex === idx ? "bg-white scale-125" : "bg-white/50 hover:bg-white/80"
+                  }`}
                 />
               ))}
               {photos.length > 6 && (
@@ -111,7 +150,7 @@ export const RoomOfferCard = ({ room, nights = 1, onSelect }) => {
           {/* Occupancy & Bed */}
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 mb-2">
             <span>Up to {room.maxOccupancy} Guests</span>
-            <span className="text-slate-300">•</span>
+            <span className="text-slate-300">&bull;</span>
             <span className="truncate max-w-[200px]">{room.bedType}</span>
           </div>
 
