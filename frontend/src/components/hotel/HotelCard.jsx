@@ -16,16 +16,6 @@ export const HotelCard = ({ hotel, nights = 1 }) => {
 
   const scoreNumber = Number(hotel.rating || 0);
 
-  const getScoreLabel = (score) => {
-    if (score >= 9.0) return "Exceptional";
-    if (score >= 8.0) return "Very Good";
-    if (score >= 7.0) return "Good";
-    if (score > 0) return "Pleasant";
-    return "";
-  };
-
-  const scoreLabel = getScoreLabel(scoreNumber);
-
   return (
     <div className="bg-white rounded-lg border border-stone-200 overflow-hidden shadow-xs hover:border-[#254546]/40 transition group flex flex-col md:flex-row md:items-stretch">
       {/* Standardized Image Column */}
@@ -41,8 +31,7 @@ export const HotelCard = ({ hotel, nights = 1 }) => {
             className="absolute top-3 left-3 text-white text-xs px-2.5 py-1 rounded-md font-bold flex items-center space-x-1 shadow-xs"
             style={{ backgroundColor: "#254546" }}
           >
-            <span>{scoreNumber.toFixed(1)}</span>
-            <span className="text-[10px] font-light opacity-80">/ 10</span>
+            <span>Score: {scoreNumber.toFixed(1)} / 10</span>
           </div>
         )}
       </div>
@@ -52,16 +41,9 @@ export const HotelCard = ({ hotel, nights = 1 }) => {
         <div>
           <div className="flex items-start justify-between gap-2 mb-2">
             <div className="flex-1 min-w-0">
-              <div className="flex items-center space-x-2">
-                <h3 className="text-base sm:text-lg font-bold text-black group-hover:opacity-80 transition truncate">
-                  {hotel.name}
-                </h3>
-                {scoreLabel && (
-                  <span className="hidden sm:inline-block text-[11px] font-semibold text-[#254546] bg-[#25454612] px-2 py-0.5 rounded shrink-0">
-                    {scoreLabel}
-                  </span>
-                )}
-              </div>
+              <h3 className="text-base sm:text-lg font-bold text-black group-hover:opacity-80 transition truncate">
+                {hotel.name}
+              </h3>
               <p className="text-xs text-slate-500 mt-1 truncate">{hotel.address}</p>
             </div>
           </div>

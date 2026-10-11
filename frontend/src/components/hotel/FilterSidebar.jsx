@@ -2,10 +2,9 @@ import React from "react";
 
 export const FilterSidebar = ({ filters, onFilterChange, onReset, maxAvailablePrice = 3000 }) => {
   const ratingTiers = [
-    { key: "9", label: "9.0+ Exceptional" },
-    { key: "8", label: "8.0 - 8.9 Very Good" },
-    { key: "7", label: "7.0 - 7.9 Good" },
-    { key: "under7", label: "Below 7.0 Pleasant" }
+    { key: "tier_high", label: "8.0 - 10" },
+    { key: "tier_mid", label: "5.1 - 7.9" },
+    { key: "tier_low", label: "5.0 & Below" }
   ];
 
   return (
@@ -24,9 +23,9 @@ export const FilterSidebar = ({ filters, onFilterChange, onReset, maxAvailablePr
       {/* Guest Review Rating Filter */}
       <div>
         <label className="block text-xs font-bold text-black uppercase tracking-wider mb-2">
-          Guest Review Score
+          Rating
         </label>
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           {ratingTiers.map(({ key, label }) => {
             const isChecked = filters.ratingTiers?.includes(key);
             return (
@@ -47,7 +46,7 @@ export const FilterSidebar = ({ filters, onFilterChange, onReset, maxAvailablePr
                   className="w-4 h-4 rounded cursor-pointer"
                   style={{ accentColor: "#254546" }}
                 />
-                <span className="font-medium text-slate-700">
+                <span className="font-semibold text-slate-700">
                   {label}
                 </span>
               </label>
