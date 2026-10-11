@@ -27,15 +27,15 @@ export const RoomOfferCard = ({ room, nights = 1, onSelect }) => {
     setPhotoIndex((prev) => (prev === photos.length - 1 ? 0 : prev + 1));
   };
 
-  const maxVisibleAmenities = 8;
+  const maxVisibleAmenities = 6;
   const amenitiesList = room.amenities || [];
   const visibleAmenities = amenitiesList.slice(0, maxVisibleAmenities);
   const remainingCount = amenitiesList.length - maxVisibleAmenities;
 
   return (
-    <div className="bg-white rounded-lg border border-stone-200 overflow-hidden shadow-xs hover:border-[#254546]/40 transition flex flex-col md:flex-row md:items-stretch">
-      {/* Standardized Photo Carousel Column */}
-      <div className="relative md:w-72 lg:w-80 h-52 sm:h-56 md:h-auto min-h-[220px] max-h-[260px] md:max-h-none bg-stone-100 overflow-hidden shrink-0 group">
+    <div className="bg-white rounded-lg border border-stone-200 overflow-hidden shadow-xs hover:border-[#254546]/40 transition flex flex-col md:flex-row md:h-60 lg:h-64">
+      {/* Strict Fixed-Height Room Photo Carousel */}
+      <div className="relative md:w-72 lg:w-80 h-52 sm:h-56 md:h-full bg-stone-100 overflow-hidden shrink-0 group">
         <img
           src={photos[photoIndex] || room.image}
           alt={room.name + " - Photo " + (photoIndex + 1)}
@@ -93,11 +93,11 @@ export const RoomOfferCard = ({ room, nights = 1, onSelect }) => {
       </div>
 
       {/* Room Details Column */}
-      <div className="p-5 md:p-6 flex-1 flex flex-col justify-between">
+      <div className="p-4 sm:p-5 md:p-6 flex-1 flex flex-col justify-between min-w-0 h-full">
         <div>
           {/* Title & Pinned Top-Right Badge */}
-          <div className="flex items-start justify-between gap-4 mb-2">
-            <h3 className="text-base sm:text-lg font-bold text-black leading-snug flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-3 mb-1.5">
+            <h3 className="text-base sm:text-lg font-bold text-black leading-snug flex-1 min-w-0 truncate">
               {room.name}
             </h3>
             <span
@@ -109,31 +109,31 @@ export const RoomOfferCard = ({ room, nights = 1, onSelect }) => {
           </div>
 
           {/* Occupancy & Bed */}
-          <div className="flex flex-wrap items-center gap-2.5 text-xs text-slate-600 mb-3">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 mb-2">
             <span>Up to {room.maxOccupancy} Guests</span>
             <span className="text-slate-300">•</span>
-            <span>{room.bedType}</span>
+            <span className="truncate max-w-[200px]">{room.bedType}</span>
           </div>
 
           {/* Cancellation Policy */}
-          <div className="mb-3">
+          <div className="mb-2">
             {isFreeCancellation ? (
-              <span className="inline-block text-xs font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+              <span className="inline-block text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
                 Free Cancellation
               </span>
             ) : (
-              <span className="inline-block text-xs font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+              <span className="inline-block text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
                 Non-Refundable
               </span>
             )}
           </div>
 
-          {/* Amenities (Capped at 8 with +more counter) */}
+          {/* Amenities (Capped at 6 with +more counter) */}
           <div className="flex flex-wrap gap-1.5 items-center">
             {visibleAmenities.map((item, idx) => (
               <span
                 key={idx}
-                className="text-[11px] bg-stone-50 text-slate-700 px-2 py-0.5 rounded-md border border-stone-200"
+                className="text-[11px] bg-stone-50 text-slate-700 px-2 py-0.5 rounded-md border border-stone-200 truncate max-w-[150px]"
               >
                 {item}
               </span>
@@ -147,7 +147,7 @@ export const RoomOfferCard = ({ room, nights = 1, onSelect }) => {
         </div>
 
         {/* Pricing & Selection Footer */}
-        <div className="mt-5 pt-4 border-t border-stone-100 flex items-center justify-between">
+        <div className="mt-3 pt-3 border-t border-stone-100 flex items-center justify-between">
           <div>
             <div className="text-xs text-slate-400">
               {nights} night{nights > 1 ? "s" : ""} total
@@ -165,7 +165,7 @@ export const RoomOfferCard = ({ room, nights = 1, onSelect }) => {
           <button
             onClick={() => onSelect(room)}
             style={{ backgroundColor: "#254546", color: "#fefae0" }}
-            className="text-xs font-semibold px-5 py-2.5 rounded-md transition hover:opacity-90 cursor-pointer"
+            className="text-xs font-semibold px-5 py-2.5 rounded-md transition hover:opacity-90 cursor-pointer whitespace-nowrap"
           >
             Reserve Room
           </button>
